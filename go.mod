@@ -3,7 +3,7 @@ module github.com/concordalabs/monogo
 go 1.23.4
 
 require (
-	github.com/davecgh/go-spew v1.1.1
+	github.com/alecthomas/kong v1.12.1
 	github.com/go-git/go-git/v5 v5.12.0
 )
 
