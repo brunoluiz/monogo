@@ -31,20 +31,25 @@ func (r *DetectCmd) Run(c *Context) error {
 		return fmt.Errorf("failed to load packages: %v", err)
 	}
 
+	w, err := walker.New(r.Path)
+	if err != nil {
+		return err
+	}
+
+	// NOTE: for each entry point, build a tree based on MAIN branch
+
 	for _, entry := range r.Entrypoints {
-		w, err := walker.New(r.Path)
-		if err != nil {
+		// NOTE: probably need an extra matcher to build the tree on HEAD
+		changedPkg := changedPackageMatcher{changedPkgs: changedPkgs}
+		if err = w.Walk(c.Context, entry, changedPkg.Matcher); err != nil {
 			return err
 		}
 
-		matcher := changedPackageMatcher{changedPkgs: changedPkgs}
-		if err = w.Walk(c.Context, entry, matcher.Match); err != nil {
-			return err
-		}
-
-		if matcher.found {
+		if changedPkg.changed {
 			c.Logger.Info("Changed entrypoint", "entrypoint", entry)
 		}
+
+		// NOTE: compare tree size between MAIN x HEAD... deletes/creates would be detected here
 	}
 
 	return err
@@ -52,17 +57,17 @@ func (r *DetectCmd) Run(c *Context) error {
 
 type changedPackageMatcher struct {
 	changedPkgs []*packages.Package
-	found       bool
+	changed     bool
 }
 
-func (m *changedPackageMatcher) Match(p *packages.Package) (bool, error) {
-	if m.found {
+func (m *changedPackageMatcher) Matcher(p *packages.Package) (bool, error) {
+	if m.changed {
 		return true, nil
 	}
 
 	_, ok := lo.Find(m.changedPkgs, func(changedPkg *packages.Package) bool {
 		return changedPkg.ID == p.ID
 	})
-	m.found = ok
+	m.changed = ok
 	return ok, nil
 }
