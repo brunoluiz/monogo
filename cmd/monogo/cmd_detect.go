@@ -55,17 +55,27 @@ type changesMatcher struct {
 	found bool
 }
 
+func (m *changesMatcher) match(b string) func(a string) bool {
+	return func(a string) bool {
+		return a == b
+	}
+}
+
 func (m *changesMatcher) Matcher(p *packages.Package) (bool, error) {
 	if m.found {
 		return true, nil
 	}
 
-	_, ok := lo.Find(m.files, func(changedFile string) bool {
-		_, found := lo.Find(p.CompiledGoFiles, func(goFile string) bool {
-			return changedFile == goFile
-		})
-		return found
+	_, found := lo.Find(m.files, func(changedFile string) bool {
+		if _, ok := lo.Find(p.CompiledGoFiles, m.match(changedFile)); ok {
+			return true
+		}
+
+		if _, ok := lo.Find(p.EmbedFiles, m.match(changedFile)); ok {
+			return true
+		}
+		return false
 	})
-	m.found = ok
-	return ok, nil
+	m.found = found
+	return m.found, nil
 }
