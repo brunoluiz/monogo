@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/concordalabs/monogo/internal/walker"
+	"github.com/concordalabs/monogo/internal/walker/matcher"
 	"github.com/concordalabs/monogo/xgit"
 	"github.com/samber/lo"
-	"golang.org/x/tools/go/packages"
 )
 
 type DetectCmd struct {
@@ -35,12 +35,12 @@ func (r *DetectCmd) Run(c *Context) error {
 
 	for _, entry := range r.Entrypoints {
 		// NOTE: probably need an extra matcher to build the tree on HEAD
-		findChanges := changesMatcher{files: changed}
+		findChanges := matcher.NewChanges(changed)
 		if err = w.Walk(c.Context, entry, findChanges.Matcher); err != nil {
 			return err
 		}
 
-		if findChanges.found {
+		if findChanges.Found() {
 			c.Logger.Info("Changed entrypoint", "entrypoint", entry)
 		}
 
@@ -48,34 +48,4 @@ func (r *DetectCmd) Run(c *Context) error {
 	}
 
 	return err
-}
-
-type changesMatcher struct {
-	files []string
-	found bool
-}
-
-func (m *changesMatcher) match(b string) func(a string) bool {
-	return func(a string) bool {
-		return a == b
-	}
-}
-
-func (m *changesMatcher) Matcher(p *packages.Package) (bool, error) {
-	if m.found {
-		return true, nil
-	}
-
-	_, found := lo.Find(m.files, func(changedFile string) bool {
-		if _, ok := lo.Find(p.CompiledGoFiles, m.match(changedFile)); ok {
-			return true
-		}
-
-		if _, ok := lo.Find(p.EmbedFiles, m.match(changedFile)); ok {
-			return true
-		}
-		return false
-	})
-	m.found = found
-	return m.found, nil
 }
