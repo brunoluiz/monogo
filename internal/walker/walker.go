@@ -43,9 +43,7 @@ func (w *Walker) walk(ctx context.Context, entry string, matchers ...matcher) er
 	default:
 		// Load all packages in the codebase
 		pkgs, err := packages.Load(&packages.Config{
-			// Mode: packages.NeedImports | packages.NeedFiles | packages.NeedDeps | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName | packages.NeedExportFile,
-			// Mode: packages.NeedImports | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName,
-			Mode: packages.NeedImports | packages.NeedName,
+			Mode: packages.NeedImports | packages.NeedCompiledGoFiles | packages.NeedDeps | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName | packages.NeedExportFile,
 			Dir:  w.basePath,
 		}, entry)
 		if err != nil {

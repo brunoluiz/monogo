@@ -21,15 +21,10 @@ func (r *DetectCmd) Run(c *Context) error {
 		return fmt.Errorf("failed to load diff: %v", err)
 	}
 	c.Logger.Info("Changed files", "files", changesArr)
-	changedPkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedName,
-		Dir:  r.Path,
-	}, lo.Map(changesArr, func(change string, _ int) string {
-		return filepath.Join(r.Path, filepath.Dir(change))
-	})...)
-	if err != nil {
-		return fmt.Errorf("failed to load packages: %v", err)
-	}
+	changed := lo.Map(changesArr, func(change string, _ int) string {
+		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
+		return abs
+	})
 
 	w, err := walker.New(r.Path)
 	if err != nil {
@@ -40,12 +35,12 @@ func (r *DetectCmd) Run(c *Context) error {
 
 	for _, entry := range r.Entrypoints {
 		// NOTE: probably need an extra matcher to build the tree on HEAD
-		changedPkg := changedPackageMatcher{changedPkgs: changedPkgs}
-		if err = w.Walk(c.Context, entry, changedPkg.Matcher); err != nil {
+		findChanges := changesMatcher{files: changed}
+		if err = w.Walk(c.Context, entry, findChanges.Matcher); err != nil {
 			return err
 		}
 
-		if changedPkg.changed {
+		if findChanges.found {
 			c.Logger.Info("Changed entrypoint", "entrypoint", entry)
 		}
 
@@ -55,19 +50,22 @@ func (r *DetectCmd) Run(c *Context) error {
 	return err
 }
 
-type changedPackageMatcher struct {
-	changedPkgs []*packages.Package
-	changed     bool
+type changesMatcher struct {
+	files []string
+	found bool
 }
 
-func (m *changedPackageMatcher) Matcher(p *packages.Package) (bool, error) {
-	if m.changed {
+func (m *changesMatcher) Matcher(p *packages.Package) (bool, error) {
+	if m.found {
 		return true, nil
 	}
 
-	_, ok := lo.Find(m.changedPkgs, func(changedPkg *packages.Package) bool {
-		return changedPkg.ID == p.ID
+	_, ok := lo.Find(m.files, func(changedFile string) bool {
+		_, found := lo.Find(p.CompiledGoFiles, func(goFile string) bool {
+			return changedFile == goFile
+		})
+		return found
 	})
-	m.changed = ok
+	m.found = ok
 	return ok, nil
 }
