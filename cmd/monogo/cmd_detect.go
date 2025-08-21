@@ -12,6 +12,7 @@ import (
 
 type DetectCmd struct {
 	Path        string   `help:"Path to detect changes" default:"."`
+	MainBranch  string   `help:"Main git branch" default:"main"`
 	Entrypoints []string `help:"Entrypoints to analyze for changes" default:"./cmd/xpdig"`
 }
 
@@ -26,25 +27,52 @@ func (r *DetectCmd) Run(c *Context) error {
 		return abs
 	})
 
-	w, err := walker.New(r.Path)
+	mainBranchTree := map[string][]string{}
+
+	// TODO: walk through tree to do files in main branch
+	// TODO: variable must be customisable
+	err = xgit.WorktreeExec(r.MainBranch, func() error {
+		w, err := walker.New(r.Path)
+		if err != nil {
+			return err
+		}
+
+		for _, entry := range r.Entrypoints {
+			// NOTE: probably need an extra matcher to build the tree on HEAD
+			listPkgs := matcher.NewList()
+			if err = w.Walk(c.Context, entry, listPkgs.Matcher); err != nil {
+				return err
+			}
+			mainBranchTree[entry] = listPkgs.List()
+		}
+
+		return nil
+	}, xgit.WithWorktreePath(r.Path))
 	if err != nil {
 		return err
 	}
 
 	// NOTE: for each entry point, build a tree based on MAIN branch
+	w, err := walker.New(r.Path)
+	if err != nil {
+		return err
+	}
 
 	for _, entry := range r.Entrypoints {
 		// NOTE: probably need an extra matcher to build the tree on HEAD
 		findChanges := matcher.NewChanges(changed)
-		if err = w.Walk(c.Context, entry, findChanges.Matcher); err != nil {
+		listPkgs := matcher.NewList()
+		if err = w.Walk(c.Context, entry, findChanges.Matcher, listPkgs.Matcher); err != nil {
 			return err
 		}
 
 		if findChanges.Found() {
-			c.Logger.Info("Changed entrypoint", "entrypoint", entry)
+			c.Logger.Info("Changed entrypoint due to updated files", "entrypoint", entry)
 		}
 
-		// NOTE: compare tree size between MAIN x HEAD... deletes/creates would be detected here
+		if !lo.ElementsMatch(mainBranchTree[entry], listPkgs.List()) {
+			c.Logger.Info("Changed entrypoint due to created/deleted files", "entrypoint", entry)
+		}
 	}
 
 	return err
