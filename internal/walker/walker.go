@@ -3,6 +3,7 @@ package walker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,11 +14,12 @@ import (
 
 type Walker struct {
 	cache    map[string]*packages.Package
+	logger   *slog.Logger
 	basePath string
 	module   string
 }
 
-func New(basePath string) (*Walker, error) {
+func New(basePath string, logger *slog.Logger) (*Walker, error) {
 	module, err := getModuleName(basePath)
 	if err != nil {
 		return nil, fmt.Errorf("base path might not be a module: %w", err)
@@ -25,6 +27,7 @@ func New(basePath string) (*Walker, error) {
 
 	return &Walker{
 		cache:    make(map[string]*packages.Package),
+		logger:   logger,
 		basePath: basePath,
 		module:   module,
 	}, nil

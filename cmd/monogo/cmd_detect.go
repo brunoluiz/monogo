@@ -34,7 +34,7 @@ func (r *DetectCmd) Run(c *Context) error {
 	// TODO: walk through tree to do files in main branch
 	// TODO: variable must be customisable
 	err = xgit.RunOnRef(r.MainBranch, func() error {
-		w, err := walker.New(r.Path)
+		w, err := walker.New(r.Path, c.Logger.WithGroup("walker:main"))
 		if err != nil {
 			return err
 		}
@@ -53,7 +53,7 @@ func (r *DetectCmd) Run(c *Context) error {
 		return err
 	}
 
-	w, err := walker.New(r.Path)
+	w, err := walker.New(r.Path, c.Logger.WithGroup("walker:ref"))
 	if err != nil {
 		return err
 	}
