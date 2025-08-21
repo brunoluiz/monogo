@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/concordalabs/monogo/internal/walker"
@@ -21,7 +23,7 @@ func (r *DetectCmd) Run(c *Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load diff: %v", err)
 	}
-	c.Logger.Info("Changed files", "files", changesArr)
+	c.Logger.DebugContext(c.Context, "Changed files", "files", changesArr)
 	changed := lo.Map(changesArr, func(change string, _ int) string {
 		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
 		return abs
@@ -57,6 +59,9 @@ func (r *DetectCmd) Run(c *Context) error {
 		return err
 	}
 
+	output := Res{
+		Entrypoints: map[string]EntrypointRes{},
+	}
 	for _, entry := range r.Entrypoints {
 		changesHook := hook.NewChangeDetector(changed)
 		listerHook := hook.NewLister()
@@ -64,24 +69,35 @@ func (r *DetectCmd) Run(c *Context) error {
 			return err
 		}
 
+		reasons := []string{}
 		if changesHook.Found() {
-			c.Logger.Info("Changed entrypoint due to updated files", "entrypoint", entry)
+			reasons = append(reasons, "files updated")
 		}
 
 		if !lo.ElementsMatch(mainBranchTree[entry], listerHook.Files()) {
-			c.Logger.Info("Changed entrypoint due to created/deleted files", "entrypoint", entry)
+			reasons = append(reasons, "files created/deleted")
 		}
+
+		output.Entrypoints[entry] = EntrypointRes{
+			Path:    entry,
+			Changed: len(reasons) > 0,
+			Reasons: reasons,
+		}
+	}
+
+	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
+		return fmt.Errorf("failed to encode output: %w", err)
 	}
 
 	return err
 }
 
 type Res struct {
-	Entrypoints []EntrypointRes
+	Entrypoints map[string]EntrypointRes `json:"entrypoints"`
 }
 
 type EntrypointRes struct {
-	Path    string
-	Changed bool
-	Reasons []string
+	Path    string   `json:"path"`
+	Changed bool     `json:"changed"`
+	Reasons []string `json:"reasons"`
 }
