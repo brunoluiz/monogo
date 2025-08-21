@@ -19,21 +19,58 @@ type DetectCmd struct {
 }
 
 func (r *DetectCmd) Run(c *Context) error {
-	changesArr, err := xgit.Diff("main", xgit.WithPath(r.Path))
+	out, err := r.run(c)
 	if err != nil {
-		return fmt.Errorf("failed to load diff: %v", err)
+		return fmt.Errorf("failed to run detect command: %w", err)
 	}
-	c.Logger.DebugContext(c.Context, "Changed files", "files", changesArr)
+
+	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
+		return fmt.Errorf("failed to encode output: %w", err)
+	}
+
+	return nil
+}
+
+func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
+	git, err := xgit.New(xgit.WithPath(r.Path))
+	if err != nil {
+		return DetectOutput{}, fmt.Errorf("failed to open git repository: %v", err)
+	}
+
+	mainBranchTree := map[string][]string{}
+	changesArr, err := git.Diff("main")
+	if err != nil {
+		return DetectOutput{}, fmt.Errorf("failed to load diff: %v", err)
+	}
+
+	headHash, headRef, err := git.Head()
+	if err != nil {
+		return DetectOutput{}, fmt.Errorf("failed to get head ref: %v", err)
+	}
+
+	output := DetectOutput{
+		Git:         DetectGitOutput{Hash: headHash, Ref: headRef},
+		Entrypoints: map[string]EntrypointOutput{},
+	}
+
+	if len(changesArr) == 0 {
+		return DetectOutput{
+			Entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
+				return item, EntrypointOutput{
+					Path:    item,
+					Changed: false,
+					Reasons: []string{},
+				}
+			}),
+		}, nil
+	}
+
 	changed := lo.Map(changesArr, func(change string, _ int) string {
 		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
 		return abs
 	})
 
-	mainBranchTree := map[string][]string{}
-
-	// TODO: walk through tree to do files in main branch
-	// TODO: variable must be customisable
-	err = xgit.RunOnRef(r.MainBranch, func() error {
+	err = git.RunOnRef(r.MainBranch, func() error {
 		w, err := walker.New(r.Path, c.Logger.WithGroup("walker:main"))
 		if err != nil {
 			return err
@@ -48,24 +85,21 @@ func (r *DetectCmd) Run(c *Context) error {
 		}
 
 		return nil
-	}, xgit.WithWorktreePath(r.Path))
+	})
 	if err != nil {
-		return err
+		return DetectOutput{}, err
 	}
 
 	w, err := walker.New(r.Path, c.Logger.WithGroup("walker:ref"))
 	if err != nil {
-		return err
+		return DetectOutput{}, err
 	}
 
-	output := Res{
-		Entrypoints: map[string]EntrypointRes{},
-	}
 	for _, entry := range r.Entrypoints {
 		changesHook := hook.NewChangeDetector(changed)
 		listerHook := hook.NewLister()
 		if err = w.Walk(c.Context, entry, changesHook, listerHook); err != nil {
-			return err
+			return DetectOutput{}, err
 		}
 
 		reasons := []string{}
@@ -77,25 +111,27 @@ func (r *DetectCmd) Run(c *Context) error {
 			reasons = append(reasons, "files created/deleted")
 		}
 
-		output.Entrypoints[entry] = EntrypointRes{
+		output.Entrypoints[entry] = EntrypointOutput{
 			Path:    entry,
 			Changed: len(reasons) > 0,
 			Reasons: reasons,
 		}
 	}
 
-	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
-		return fmt.Errorf("failed to encode output: %w", err)
-	}
-
-	return err
+	return output, err
 }
 
-type Res struct {
-	Entrypoints map[string]EntrypointRes `json:"entrypoints"`
+type DetectOutput struct {
+	Git         DetectGitOutput             `json:"git"`
+	Entrypoints map[string]EntrypointOutput `json:"entrypoints"`
 }
 
-type EntrypointRes struct {
+type DetectGitOutput struct {
+	Hash string `json:"hash"`
+	Ref  string `json:"ref"`
+}
+
+type EntrypointOutput struct {
 	Path    string   `json:"path"`
 	Changed bool     `json:"changed"`
 	Reasons []string `json:"reasons"`

@@ -7,37 +7,13 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-type worktreeConfig struct {
-	path string
-}
-
-type WithWorktreeExecOpt func(*worktreeConfig)
-
-func WithWorktreePath(path string) func(*worktreeConfig) {
-	return func(c *worktreeConfig) {
-		c.path = path
-	}
-}
-
-func RunOnRef(ref string, cb func() error, opts ...WithWorktreeExecOpt) error {
-	cfg := worktreeConfig{
-		path: ".",
-	}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	r, err := git.PlainOpen(cfg.path)
-	if err != nil {
-		return err
-	}
-
-	currentBranch, err := r.Head()
+func (g *Git) RunOnRef(ref string, cb func() error) error {
+	currentBranch, err := g.repo.Head()
 	if err != nil {
 		return fmt.Errorf("failed to resolve head ref: %w", err)
 	}
 
-	wt, err := r.Worktree()
+	wt, err := g.repo.Worktree()
 	if err != nil {
 		return fmt.Errorf("failed to resolve worktree: %w", err)
 	}
