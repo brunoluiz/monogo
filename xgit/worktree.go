@@ -19,7 +19,7 @@ func WithWorktreePath(path string) func(*worktreeConfig) {
 	}
 }
 
-func WorktreeExec(branch string, cb func() error, opts ...WithWorktreeExecOpt) error {
+func RunOnRef(ref string, cb func() error, opts ...WithWorktreeExecOpt) error {
 	cfg := worktreeConfig{
 		path: ".",
 	}
@@ -48,7 +48,7 @@ func WorktreeExec(branch string, cb func() error, opts ...WithWorktreeExecOpt) e
 		}
 	}()
 
-	if err = wt.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branch)}); err != nil {
+	if err = wt.Checkout(&git.CheckoutOptions{Branch: plumbing.ReferenceName(ref)}); err != nil {
 		return fmt.Errorf("failed to checkout: %w", err)
 	}
 

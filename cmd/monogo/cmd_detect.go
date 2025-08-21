@@ -12,7 +12,7 @@ import (
 
 type DetectCmd struct {
 	Path        string   `help:"Path to detect changes" default:"."`
-	MainBranch  string   `help:"Main git branch" default:"main"`
+	MainBranch  string   `help:"Main git branch" default:"refs/heads/main"`
 	Entrypoints []string `help:"Entrypoints to analyze for changes" default:"./cmd/xpdig"`
 }
 
@@ -31,7 +31,7 @@ func (r *DetectCmd) Run(c *Context) error {
 
 	// TODO: walk through tree to do files in main branch
 	// TODO: variable must be customisable
-	err = xgit.WorktreeExec(r.MainBranch, func() error {
+	err = xgit.RunOnRef(r.MainBranch, func() error {
 		w, err := walker.New(r.Path)
 		if err != nil {
 			return err
@@ -74,4 +74,14 @@ func (r *DetectCmd) Run(c *Context) error {
 	}
 
 	return err
+}
+
+type Res struct {
+	Entrypoints []EntrypointRes
+}
+
+type EntrypointRes struct {
+	Path    string
+	Changed bool
+	Reasons []string
 }
