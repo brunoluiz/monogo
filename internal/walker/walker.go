@@ -30,13 +30,15 @@ func New(basePath string) (*Walker, error) {
 	}, nil
 }
 
-type matcher func(p *packages.Package) (stop bool, err error)
-
-func (w *Walker) Walk(ctx context.Context, entry string, matchers ...matcher) error {
-	return w.walk(ctx, entry, matchers...)
+type Hook interface {
+	Do(p *packages.Package) (err error)
 }
 
-func (w *Walker) walk(ctx context.Context, entry string, matchers ...matcher) error {
+func (w *Walker) Walk(ctx context.Context, entry string, hooks ...Hook) error {
+	return w.walk(ctx, entry, hooks...)
+}
+
+func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 	select {
 	case <-ctx.Done():
 		return nil
@@ -64,17 +66,13 @@ func (w *Walker) walk(ctx context.Context, entry string, matchers ...matcher) er
 				// fmt.Printf("%s\n", imported)
 				w.cache[imported.PkgPath] = imported
 
-				for _, m := range matchers {
-					stop, err := m(imported)
-					if stop {
-						return nil
-					}
-					if err != nil {
+				for _, h := range hooks {
+					if err := h.Do(imported); err != nil {
 						return err
 					}
 				}
 
-				if err := w.walk(ctx, imported.PkgPath, matchers...); err != nil {
+				if err := w.walk(ctx, imported.PkgPath, hooks...); err != nil {
 					return fmt.Errorf("error finding dependent files for package %s: %s", pkg.PkgPath, err)
 				}
 			}

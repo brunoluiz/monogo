@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/concordalabs/monogo/internal/walker"
-	"github.com/concordalabs/monogo/internal/walker/matcher"
+	"github.com/concordalabs/monogo/internal/walker/hook"
 	"github.com/concordalabs/monogo/xgit"
 	"github.com/samber/lo"
 )
@@ -39,11 +39,11 @@ func (r *DetectCmd) Run(c *Context) error {
 
 		for _, entry := range r.Entrypoints {
 			// NOTE: probably need an extra matcher to build the tree on HEAD
-			listPkgs := matcher.NewList()
-			if err = w.Walk(c.Context, entry, listPkgs.Matcher); err != nil {
+			listerHook := hook.NewLister()
+			if err = w.Walk(c.Context, entry, listerHook); err != nil {
 				return err
 			}
-			mainBranchTree[entry] = listPkgs.List()
+			mainBranchTree[entry] = listerHook.Files()
 		}
 
 		return nil
@@ -52,25 +52,23 @@ func (r *DetectCmd) Run(c *Context) error {
 		return err
 	}
 
-	// NOTE: for each entry point, build a tree based on MAIN branch
 	w, err := walker.New(r.Path)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range r.Entrypoints {
-		// NOTE: probably need an extra matcher to build the tree on HEAD
-		findChanges := matcher.NewChanges(changed)
-		listPkgs := matcher.NewList()
-		if err = w.Walk(c.Context, entry, findChanges.Matcher, listPkgs.Matcher); err != nil {
+		changesHook := hook.NewChangeDetector(changed)
+		listerHook := hook.NewLister()
+		if err = w.Walk(c.Context, entry, changesHook, listerHook); err != nil {
 			return err
 		}
 
-		if findChanges.Found() {
+		if changesHook.Found() {
 			c.Logger.Info("Changed entrypoint due to updated files", "entrypoint", entry)
 		}
 
-		if !lo.ElementsMatch(mainBranchTree[entry], listPkgs.List()) {
+		if !lo.ElementsMatch(mainBranchTree[entry], listerHook.Files()) {
 			c.Logger.Info("Changed entrypoint due to created/deleted files", "entrypoint", entry)
 		}
 	}
