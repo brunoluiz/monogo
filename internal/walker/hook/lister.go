@@ -7,30 +7,31 @@ import (
 )
 
 type Lister struct {
-	embedFiles []string
-	goFiles    []string
-	packages   []string
+	packages map[string]*packages.Package
 }
 
 func NewLister() *Lister {
 	return &Lister{
-		embedFiles: []string{},
-		goFiles:    []string{},
-		packages:   []string{},
+		packages: map[string]*packages.Package{},
 	}
 }
 
 func (h *Lister) Files() []string {
 	files := []string{}
-	files = append(files, h.embedFiles...)
-	files = append(files, h.goFiles...)
+	for _, pkg := range h.packages {
+		files = append(files, pkg.CompiledGoFiles...)
+		files = append(files, pkg.EmbedFiles...)
+	}
+
 	slices.Sort(files)
 	return files
 }
 
+func (h *Lister) Packages() map[string]*packages.Package {
+	return h.packages
+}
+
 func (h *Lister) Do(p *packages.Package) error {
-	h.embedFiles = append(h.embedFiles, p.EmbedFiles...)
-	h.goFiles = append(h.goFiles, p.CompiledGoFiles...)
-	h.packages = append(h.packages, p.ID)
+	h.packages[p.ID] = p
 	return nil
 }
