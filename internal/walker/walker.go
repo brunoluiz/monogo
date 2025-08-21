@@ -49,37 +49,48 @@ func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 			Dir:  w.basePath,
 		}, entry)
 		if err != nil {
-			return fmt.Errorf("failed to load packages: %v", err)
+			return fmt.Errorf("failed to load packages: %w", err)
 		}
 
 		// Iterate through all packages to find dependencies
 		for _, pkg := range pkgs {
+			if err := w.handlePackage(ctx, pkg, hooks...); err != nil {
+				return err
+			}
+
 			for _, imported := range pkg.Imports {
-				if _, found := w.cache[imported.PkgPath]; found {
-					continue
-				}
-
-				if !strings.HasPrefix(imported.PkgPath, w.module) {
-					continue
-				}
-
-				// fmt.Printf("%s\n", imported)
-				w.cache[imported.PkgPath] = imported
-
-				for _, h := range hooks {
-					if err := h.Do(imported); err != nil {
-						return err
-					}
-				}
-
-				if err := w.walk(ctx, imported.PkgPath, hooks...); err != nil {
-					return fmt.Errorf("error finding dependent files for package %s: %s", pkg.PkgPath, err)
+				if err := w.handlePackage(ctx, imported, hooks...); err != nil {
+					return err
 				}
 			}
 		}
 
 		return nil
 	}
+}
+
+func (w *Walker) handlePackage(
+	ctx context.Context,
+	imported *packages.Package,
+	hooks ...Hook,
+) error {
+	if _, found := w.cache[imported.PkgPath]; found {
+		return nil
+	}
+
+	if !strings.HasPrefix(imported.PkgPath, w.module) {
+		return nil
+	}
+
+	w.cache[imported.PkgPath] = imported
+
+	for _, h := range hooks {
+		if err := h.Do(imported); err != nil {
+			return err
+		}
+	}
+
+	return w.walk(ctx, imported.PkgPath, hooks...)
 }
 
 // getModuleName extracts the package path of a Go file.

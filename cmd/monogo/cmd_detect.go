@@ -40,7 +40,6 @@ func (r *DetectCmd) Run(c *Context) error {
 		}
 
 		for _, entry := range r.Entrypoints {
-			// NOTE: probably need an extra matcher to build the tree on HEAD
 			listerHook := hook.NewLister()
 			if err = w.Walk(c.Context, entry, listerHook); err != nil {
 				return err
