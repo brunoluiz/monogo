@@ -12,3 +12,5 @@ Golang opionated mono-repository tooling
 - Extract main logic in a package (re-usable)
 - Support configuration file
 - Standardised CI via Docker Bake
+- Run go routines for each entry point?
+- Optimise the time spent on the package lib
