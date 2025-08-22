@@ -48,7 +48,7 @@ func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 	default:
 		// Load all packages in the codebase
 		pkgs, err := packages.Load(&packages.Config{
-			Mode: packages.NeedImports | packages.NeedCompiledGoFiles | packages.NeedDeps | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName | packages.NeedExportFile,
+			Mode: packages.NeedImports | packages.NeedCompiledGoFiles | packages.NeedDeps | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName,
 			Dir:  w.basePath,
 		}, entry)
 		if err != nil {
@@ -81,16 +81,16 @@ func (w *Walker) handlePackage(
 		return nil
 	}
 
-	if !strings.HasPrefix(imported.PkgPath, w.module) {
-		return nil
-	}
-
 	w.cache[imported.PkgPath] = imported
 
 	for _, h := range hooks {
 		if err := h.Do(imported); err != nil {
 			return err
 		}
+	}
+
+	if !strings.HasPrefix(imported.PkgPath, w.module) {
+		return nil
 	}
 
 	return w.walk(ctx, imported.PkgPath, hooks...)

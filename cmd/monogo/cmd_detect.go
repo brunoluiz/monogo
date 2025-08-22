@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/concordalabs/monogo/internal/walker"
 	"github.com/concordalabs/monogo/internal/walker/hook"
@@ -51,6 +52,9 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 	output := DetectOutput{
 		Git:         DetectGitOutput{Hash: headHash, Ref: headRef},
 		Entrypoints: map[string]EntrypointOutput{},
+		Stats: DetectStats{
+			StartedAt: time.Now(),
+		},
 	}
 
 	if len(changesArr) == 0 {
@@ -118,17 +122,27 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		}
 	}
 
+	output.Stats.EndedAt = time.Now()
+	output.Stats.Duration = output.Stats.EndedAt.Sub(output.Stats.StartedAt) / time.Millisecond
+
 	return output, err
 }
 
 type DetectOutput struct {
 	Git         DetectGitOutput             `json:"git"`
+	Stats       DetectStats                 `json:"stats"`
 	Entrypoints map[string]EntrypointOutput `json:"entrypoints"`
 }
 
 type DetectGitOutput struct {
 	Hash string `json:"hash"`
 	Ref  string `json:"ref"`
+}
+
+type DetectStats struct {
+	StartedAt time.Time     `json:"started_at"`
+	EndedAt   time.Time     `json:"ended_at"`
+	Duration  time.Duration `json:"duration"`
 }
 
 type EntrypointOutput struct {
