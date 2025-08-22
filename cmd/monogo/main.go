@@ -18,8 +18,8 @@ type Context struct {
 
 var cli struct {
 	Debug    bool       `help:"Enable debug mode."`
-	LogLevel slog.Level `help:"log level to use for the application." default:"info" enum:"DEBUG,INFO,WARN,ERROR"`
-	Detect   DetectCmd  `cmd:"" help:"Remove files."`
+	LogLevel slog.Level `help:"Log level to use for the application." default:"INFO" enum:"DEBUG,INFO,WARN,ERROR"`
+	Detect   DetectCmd  `cmd:"" help:"Detect changed Golang packages based on git changes"`
 }
 
 func main() {

@@ -15,7 +15,7 @@ import (
 type DetectCmd struct {
 	Path        string   `help:"Path to detect changes" default:"."`
 	MainBranch  string   `help:"Main git branch" default:"refs/heads/main"`
-	Entrypoints []string `help:"Entrypoints to analyze for changes" default:"./cmd/xpdig"`
+	Entrypoints []string `help:"Entrypoints to analyze for changes"`
 }
 
 func (r *DetectCmd) Run(c *Context) error {
