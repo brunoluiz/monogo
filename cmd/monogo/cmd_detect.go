@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/concordalabs/monogo/internal/walker"
-	"github.com/concordalabs/monogo/internal/walker/hook"
+	"github.com/concordalabs/monogo/walker"
+	"github.com/concordalabs/monogo/walker/hook"
 	"github.com/concordalabs/monogo/xgit"
 	"github.com/samber/lo"
 )
