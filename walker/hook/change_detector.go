@@ -1,20 +1,17 @@
 package hook
 
 import (
-	"fmt"
-
 	"github.com/samber/lo"
 	"golang.org/x/tools/go/packages"
 )
 
 type ChangeDetector struct {
-	files     []string
-	found     bool
-	earlyExit bool
+	files []string
+	found bool
 }
 
 func NewChangeDetector(files []string) *ChangeDetector {
-	return &ChangeDetector{files: files, earlyExit: false}
+	return &ChangeDetector{files: files}
 }
 
 func (h *ChangeDetector) Found() bool {
@@ -22,10 +19,6 @@ func (h *ChangeDetector) Found() bool {
 }
 
 func (h *ChangeDetector) Do(p *packages.Package) error {
-	if h.found && h.earlyExit {
-		return fmt.Errorf("%w: early exit on match", ErrEarlyExit)
-	}
-
 	_, h.found = lo.Find(h.files, func(changedFile string) bool {
 		if _, ok := lo.Find(p.CompiledGoFiles, match(changedFile)); ok {
 			return true
