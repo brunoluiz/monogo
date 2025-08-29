@@ -60,11 +60,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 	if len(changesArr) == 0 {
 		return DetectOutput{
 			Entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
-				return item, EntrypointOutput{
-					Path:    item,
-					Changed: false,
-					Reasons: []string{},
-				}
+				return item, EntrypointOutput{Path: item, Changed: false}
 			}),
 		}, nil
 	}

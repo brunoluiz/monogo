@@ -23,7 +23,7 @@ func (h *ChangeDetector) Found() bool {
 
 func (h *ChangeDetector) Do(p *packages.Package) error {
 	if h.found && h.earlyExit {
-		return fmt.Errorf("%w: early exit on match", ErrStopCondition)
+		return fmt.Errorf("%w: early exit on match", ErrEarlyExit)
 	}
 
 	_, h.found = lo.Find(h.files, func(changedFile string) bool {
