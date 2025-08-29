@@ -54,15 +54,15 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		Entrypoints: map[string]EntrypointOutput{},
 		Stats: DetectStats{
 			StartedAt: time.Now(),
+			EndedAt:   time.Now(),
 		},
 	}
 
 	if len(changesArr) == 0 {
-		return DetectOutput{
-			Entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
-				return item, EntrypointOutput{Path: item, Changed: false}
-			}),
-		}, nil
+		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
+			return item, EntrypointOutput{Path: item, Changed: false, Reasons: []string{}}
+		})
+		return output, nil
 	}
 
 	changed := lo.Map(changesArr, func(change string, _ int) string {
