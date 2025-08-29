@@ -8,8 +8,9 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-func ChangedPackages(path string) (*modfile.File, error) {
-	data, err := os.ReadFile(path)
+// TODO: make the go.mod path customisable
+func Get() (*modfile.File, error) {
+	data, err := os.ReadFile("go.mod")
 	if err != nil {
 		return nil, fmt.Errorf("error to open go module file: %w", err)
 	}
@@ -31,30 +32,65 @@ const (
 	ChangeTooling
 )
 
-type ChangeOutput struct {
-	Type     ChangeType
-	Packages []string
+type ChangedPackages struct {
+	Added   []string
+	Deleted []string
+	Changed []string
+	None    []string
 }
 
-func Diff(a, b *modfile.File) ChangeOutput {
-	diffVersion := a.Go.Version != b.Go.Version
-	diffToolchain := a.Toolchain.Name != b.Toolchain.Name
+type Output struct {
+	Type     ChangeType
+	Packages ChangedPackages
+}
+
+func Diff(leftMod, rightMod *modfile.File) Output {
+	diffVersion := leftMod.Go.Version != rightMod.Go.Version
+	diffToolchain := leftMod.Toolchain.Name != rightMod.Toolchain.Name
 	if diffVersion || diffToolchain {
-		return ChangeOutput{Type: ChangeTooling}
+		return Output{Type: ChangeTooling}
 	}
 
-	x, y := lo.Difference(a.Require, b.Require)
-	// TODO: implement the package list
-	if len(x) > 0 || len(y) > 0 {
-		/*
-		 * get mod details from main
-		 * get mod details from branch
-		 * if Go changed: rebuild all
-		 * if Required module was updated: find on walker
-		 * if Required module was created/deleted: we dont care, it will show up as a file change, but probably will show up on walker
-		 */
-		return ChangeOutput{Type: ChangePackages, Packages: []string{}}
+	left, right, changed, none := []string{}, []string{}, []string{}, []string{}
+	leftPkgs := lo.SliceToMap(leftMod.Require, func(item *modfile.Require) (string, *modfile.Require) {
+		return item.Mod.Path, item
+	})
+	rightPkgs := lo.SliceToMap(rightMod.Require, func(item *modfile.Require) (string, *modfile.Require) {
+		return item.Mod.Path, item
+	})
+
+	for leftKey, leftPkg := range leftPkgs {
+		rightPkg, found := rightPkgs[leftKey]
+		if !found {
+			left = append(left, leftPkg.Mod.Path)
+			continue
+		}
+
+		// NOTE: I think it only needs to be done once
+		if leftPkg.Mod.Version != rightPkg.Mod.Version {
+			changed = append(changed, leftPkg.Mod.Path)
+			continue
+		}
+
+		none = append(none, leftPkg.Mod.Path)
 	}
 
-	return ChangeOutput{Type: ChangeNone}
+	for rightKey, rightPkg := range rightPkgs {
+		_, found := leftPkgs[rightKey]
+		if !found {
+			right = append(right, rightPkg.Mod.Path)
+			continue
+		}
+	}
+
+	if len(left) > 0 || len(right) > 0 || len(changed) > 0 {
+		return Output{Type: ChangePackages, Packages: ChangedPackages{
+			Added:   right,
+			Deleted: left,
+			None:    lo.Uniq(none),
+			Changed: lo.Uniq(changed),
+		}}
+	}
+
+	return Output{Type: ChangeNone}
 }
