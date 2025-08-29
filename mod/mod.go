@@ -45,8 +45,20 @@ type Output struct {
 }
 
 func Diff(leftMod, rightMod *modfile.File) Output {
-	diffVersion := leftMod.Go.Version != rightMod.Go.Version
-	diffToolchain := leftMod.Toolchain.Name != rightMod.Toolchain.Name
+	diffVersion := false
+	if leftMod.Go != nil && rightMod.Go != nil {
+		diffVersion = leftMod.Go.Version != rightMod.Go.Version
+	} else if leftMod.Go != rightMod.Go {
+		diffVersion = true
+	}
+
+	diffToolchain := false
+	if leftMod.Toolchain != nil && rightMod.Toolchain != nil {
+		diffToolchain = leftMod.Toolchain.Name != rightMod.Toolchain.Name
+	} else if leftMod.Toolchain != rightMod.Toolchain {
+		diffToolchain = true
+	}
+
 	if diffVersion || diffToolchain {
 		return Output{Type: ChangeTooling}
 	}
