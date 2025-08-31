@@ -38,6 +38,7 @@ type Hook interface {
 }
 
 func (w *Walker) Walk(ctx context.Context, entry string, hooks ...Hook) error {
+	w.logger.Debug("Starting walk", slog.String("entry", entry))
 	return w.walk(ctx, entry, hooks...)
 }
 
@@ -80,17 +81,17 @@ func (w *Walker) handlePackage(
 	if _, found := w.cache[imported.PkgPath]; found {
 		return nil
 	}
-
 	w.cache[imported.PkgPath] = imported
+
+	// TODO: must be placed afterwards potentially for mod checking
+	if !strings.HasPrefix(imported.PkgPath, w.module) {
+		return nil
+	}
 
 	for _, h := range hooks {
 		if err := h.Do(imported); err != nil {
 			return err
 		}
-	}
-
-	if !strings.HasPrefix(imported.PkgPath, w.module) {
-		return nil
 	}
 
 	return w.walk(ctx, imported.PkgPath, hooks...)

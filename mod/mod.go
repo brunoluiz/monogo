@@ -3,14 +3,31 @@ package mod
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/samber/lo"
 	"golang.org/x/mod/modfile"
 )
 
+type WithOpt func(c *options)
+
+type options struct {
+	path string
+}
+
+func WithModDir(path string) WithOpt {
+	return func(c *options) {
+		c.path = filepath.Join(path, "go.mod")
+	}
+}
+
 // TODO: make the go.mod path customisable
-func Get() (*modfile.File, error) {
-	data, err := os.ReadFile("go.mod")
+func Get(opts ...WithOpt) (*modfile.File, error) {
+	c := options{path: "go.mod"}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	data, err := os.ReadFile(c.path)
 	if err != nil {
 		return nil, fmt.Errorf("error to open go module file: %w", err)
 	}
@@ -29,7 +46,8 @@ const (
 	ChangeUnknown ChangeType = iota
 	ChangeNone
 	ChangePackages
-	ChangeTooling
+	ChangeGolang
+	ChangeGolangToolchain
 )
 
 type ChangedPackages struct {
@@ -39,28 +57,22 @@ type ChangedPackages struct {
 	None    []string
 }
 
+func (c ChangedPackages) All() []string {
+	return lo.Uniq(append(append(c.Added, c.Deleted...), c.Changed...))
+}
+
 type Output struct {
 	Type     ChangeType
 	Packages ChangedPackages
 }
 
 func Diff(leftMod, rightMod *modfile.File) Output {
-	diffVersion := false
-	if leftMod.Go != nil && rightMod.Go != nil {
-		diffVersion = leftMod.Go.Version != rightMod.Go.Version
-	} else if leftMod.Go != rightMod.Go {
-		diffVersion = true
+	if lo.FromPtr(leftMod.Go).Version != lo.FromPtr(rightMod.Go).Version {
+		return Output{Type: ChangeGolang}
 	}
 
-	diffToolchain := false
-	if leftMod.Toolchain != nil && rightMod.Toolchain != nil {
-		diffToolchain = leftMod.Toolchain.Name != rightMod.Toolchain.Name
-	} else if leftMod.Toolchain != rightMod.Toolchain {
-		diffToolchain = true
-	}
-
-	if diffVersion || diffToolchain {
-		return Output{Type: ChangeTooling}
+	if lo.FromPtr(leftMod.Toolchain).Name != lo.FromPtr(rightMod.Toolchain).Name {
+		return Output{Type: ChangeGolangToolchain}
 	}
 
 	left, right, changed, none := []string{}, []string{}, []string{}, []string{}

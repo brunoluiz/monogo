@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/concordalabs/monogo/mod"
 	"github.com/concordalabs/monogo/walker"
 	"github.com/concordalabs/monogo/walker/hook"
 	"github.com/concordalabs/monogo/xgit"
 	"github.com/samber/lo"
+	"golang.org/x/mod/modfile"
 )
 
 type DetectCmd struct {
@@ -32,6 +34,7 @@ func (r *DetectCmd) Run(c *Context) error {
 	return nil
 }
 
+// TODO: somewhere this should check if the mod file is okay / go mod tidy
 func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 	git, err := xgit.New(xgit.WithPath(r.Path))
 	if err != nil {
@@ -39,6 +42,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 	}
 
 	mainBranchTree := map[string][]string{}
+	var mainBranchMod *modfile.File
 	changesArr, err := git.Diff("main")
 	if err != nil {
 		return DetectOutput{}, fmt.Errorf("failed to load diff: %v", err)
@@ -76,6 +80,11 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 			return err
 		}
 
+		mainBranchMod, err = mod.Get(mod.WithModDir(r.Path))
+		if err != nil {
+			return err
+		}
+
 		for _, entry := range r.Entrypoints {
 			listerHook := hook.NewLister()
 			if err = w.Walk(c.Context, entry, listerHook); err != nil {
@@ -95,20 +104,41 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		return DetectOutput{}, err
 	}
 
+	refMod, err := mod.Get(mod.WithModDir(r.Path))
+	if err != nil {
+		return DetectOutput{}, err
+	}
+
+	modDiff := mod.Diff(mainBranchMod, refMod)
+
+	// In case Golang got updated in go.mod, mark all as changed
+	if modDiff.Type == mod.ChangeGolang {
+		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
+			return item, EntrypointOutput{Path: item, Changed: true, Reasons: []string{"go.mod golang version updated"}}
+		})
+		return output, nil
+	}
+
 	for _, entry := range r.Entrypoints {
+		reasons := []string{}
 		changesHook := hook.NewChangeDetector(changed)
 		listerHook := hook.NewLister()
-		if err = w.Walk(c.Context, entry, changesHook, listerHook); err != nil {
+		modHook := hook.NewModDetector(modDiff.Packages.All())
+
+		if err = w.Walk(c.Context, entry, changesHook, listerHook, modHook); err != nil {
 			return DetectOutput{}, err
 		}
 
-		reasons := []string{}
 		if changesHook.Found() {
 			reasons = append(reasons, "files updated")
 		}
 
 		if !lo.ElementsMatch(mainBranchTree[entry], listerHook.Files()) {
 			reasons = append(reasons, "files created/deleted")
+		}
+
+		if modHook.Found() {
+			reasons = append(reasons, "go.mod dependencies updated")
 		}
 
 		output.Entrypoints[entry] = EntrypointOutput{
