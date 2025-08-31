@@ -43,7 +43,7 @@ go 1.20
 module my/project
 go 1.21
 `,
-			expected: mod.Output{Type: mod.ChangeTooling},
+			expected: mod.Output{Type: mod.ChangeGolang},
 		},
 		{
 			name: "toolchain version change",
@@ -57,7 +57,7 @@ module my/project
 go 1.21
 toolchain go1.22.0
 `,
-			expected: mod.Output{Type: mod.ChangeTooling},
+			expected: mod.Output{Type: mod.ChangeGolangToolchain},
 		},
 		{
 			name: "package added",
