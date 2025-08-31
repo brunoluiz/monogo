@@ -20,7 +20,7 @@ func (h *ModDetector) Found() bool {
 
 func (h *ModDetector) Do(p *packages.Package) error {
 	_, h.found = lo.Find(h.packages, func(changedPackage string) bool {
-		if _, ok := lo.Find(lo.Keys(p.Imports), match(changedPackage)); ok {
+		if _, ok := lo.Find(lo.Keys(p.Imports), containsStr(changedPackage)); ok {
 			return true
 		}
 		return h.found

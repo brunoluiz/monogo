@@ -83,7 +83,6 @@ func (w *Walker) handlePackage(
 	}
 	w.cache[imported.PkgPath] = imported
 
-	// TODO: must be placed afterwards potentially for mod checking
 	if !strings.HasPrefix(imported.PkgPath, w.module) {
 		return nil
 	}
