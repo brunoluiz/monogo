@@ -22,22 +22,22 @@ func WithModDir(path string) WithOpt {
 }
 
 // TODO: make the go.mod path customisable
-func Get(opts ...WithOpt) (*modfile.File, error) {
+func Get(opts ...WithOpt) (string, *modfile.File, error) {
 	c := options{path: "go.mod"}
 	for _, opt := range opts {
 		opt(&c)
 	}
 	data, err := os.ReadFile(c.path)
 	if err != nil {
-		return nil, fmt.Errorf("error to open go module file: %w", err)
+		return "", nil, fmt.Errorf("error to open go module file: %w", err)
 	}
 
 	m, err := modfile.Parse("go.mod", data, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error to parse go module file: %w", err)
+		return "", nil, fmt.Errorf("error to parse go module file: %w", err)
 	}
 
-	return m, nil
+	return modfile.ModulePath(data), m, nil
 }
 
 type ChangeType int

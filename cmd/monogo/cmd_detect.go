@@ -80,7 +80,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 			return err
 		}
 
-		mainBranchMod, err = mod.Get(mod.WithModDir(r.Path))
+		_, mainBranchMod, err = mod.Get(mod.WithModDir(r.Path))
 		if err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		return DetectOutput{}, err
 	}
 
-	refMod, err := mod.Get(mod.WithModDir(r.Path))
+	_, refMod, err := mod.Get(mod.WithModDir(r.Path))
 	if err != nil {
 		return DetectOutput{}, err
 	}
