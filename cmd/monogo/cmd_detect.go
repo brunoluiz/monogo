@@ -114,7 +114,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 	// In case Golang got updated in go.mod, mark all as changed
 	if modDiff.Type == mod.ChangeGolang {
 		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, EntrypointOutput) {
-			return item, EntrypointOutput{Path: item, Changed: true, Reasons: []string{"go.mod golang version updated"}}
+			return item, EntrypointOutput{Path: item, Changed: true, Reasons: []string{"go version changed"}}
 		})
 		return output, nil
 	}
@@ -130,7 +130,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		}
 
 		if changesHook.Found() {
-			reasons = append(reasons, "files updated")
+			reasons = append(reasons, "files changed")
 		}
 
 		if !lo.ElementsMatch(mainBranchTree[entry], listerHook.Files()) {
@@ -138,7 +138,7 @@ func (r *DetectCmd) run(c *Context) (DetectOutput, error) {
 		}
 
 		if modHook.Found() {
-			reasons = append(reasons, "go.mod dependencies updated")
+			reasons = append(reasons, "dependencies changed")
 		}
 
 		output.Entrypoints[entry] = EntrypointOutput{
