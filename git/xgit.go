@@ -1,4 +1,4 @@
-package xgit
+package git
 
 import (
 	"fmt"

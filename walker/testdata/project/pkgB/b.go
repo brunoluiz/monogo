@@ -1,0 +1,3 @@
+package pkgB
+
+func PkgB() {}

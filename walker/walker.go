@@ -61,12 +61,6 @@ func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 			if err := w.handlePackage(ctx, pkg, hooks...); err != nil {
 				return err
 			}
-
-			for _, imported := range pkg.Imports {
-				if err := w.handlePackage(ctx, imported, hooks...); err != nil {
-					return err
-				}
-			}
 		}
 
 		return nil
@@ -75,25 +69,31 @@ func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 
 func (w *Walker) handlePackage(
 	ctx context.Context,
-	imported *packages.Package,
+	pkg *packages.Package,
 	hooks ...Hook,
 ) error {
-	if _, found := w.cache[imported.PkgPath]; found {
+	if _, found := w.cache[pkg.PkgPath]; found {
 		return nil
 	}
-	w.cache[imported.PkgPath] = imported
 
-	if !strings.HasPrefix(imported.PkgPath, w.module) {
+	if !strings.HasPrefix(pkg.PkgPath, w.module) {
 		return nil
 	}
+	w.cache[pkg.PkgPath] = pkg
 
 	for _, h := range hooks {
-		if err := h.Do(imported); err != nil {
+		if err := h.Do(pkg); err != nil {
 			return err
 		}
 	}
 
-	return w.walk(ctx, imported.PkgPath, hooks...)
+	for _, imported := range pkg.Imports {
+		if err := w.handlePackage(ctx, imported, hooks...); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // getModuleName extracts the package path of a Go file.
