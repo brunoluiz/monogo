@@ -67,13 +67,6 @@ func NewDetector(
 }
 
 func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
-	mainBranchTree := map[string][]string{}
-	var mainBranchMod *modfile.File
-	changesArr, err := r.Git.Diff("main")
-	if err != nil {
-		return DetectRes{}, fmt.Errorf("failed to load diff: %v", err)
-	}
-
 	headHash, headRef, err := r.Git.Head()
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failed to get head ref: %v", err)
@@ -85,25 +78,50 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		Entrypoints: map[string]DetectEntrypointRes{},
 	}
 
-	if len(changesArr) == 0 {
+	changes, err := r.Git.Diff("main")
+	if err != nil {
+		return DetectRes{}, fmt.Errorf("failed to load diff: %v", err)
+	}
+
+	if len(changes) == 0 {
 		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
 			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []string{}}
 		})
 		return output, nil
 	}
 
-	changed := lo.Map(changesArr, func(change string, _ int) string {
-		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
-		return abs
-	})
+	mainInfo, err := r.getMainBranchInfo(ctx)
+	if err != nil {
+		return DetectRes{}, fmt.Errorf("failure while getting main tree info: %w", err)
+	}
 
-	if err = r.Git.RunOnRef(r.MainBranch, func() error {
+	diffInfo, err := r.getDiffInfo(ctx, mainInfo, changes)
+	if err != nil {
+		return DetectRes{}, fmt.Errorf("failure while getting diff info: %w", err)
+	}
+
+	output.Entrypoints = diffInfo.entrypoints
+	output.Stats.EndedAt = time.Now()
+	output.Stats.Duration = output.Stats.EndedAt.Sub(output.Stats.StartedAt) / time.Millisecond
+
+	return output, err
+}
+
+type mainBranchInfo struct {
+	filesByEntrypoint map[string][]string
+	modfile           *modfile.File
+}
+
+func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error) {
+	info := mainBranchInfo{filesByEntrypoint: map[string][]string{}}
+
+	err := r.Git.RunOnRef(r.MainBranch, func() error {
 		w, err := walker.New(r.Path, r.Logger.WithGroup("walker:main"))
 		if err != nil {
 			return err
 		}
 
-		_, mainBranchMod, err = mod.Get(mod.WithModDir(r.Path))
+		_, info.modfile, err = mod.Get(mod.WithModDir(r.Path))
 		if err != nil {
 			return err
 		}
@@ -113,49 +131,64 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 			if err = w.Walk(ctx, entry, listerHook); err != nil {
 				return err
 			}
-			mainBranchTree[entry] = listerHook.Files()
+			info.filesByEntrypoint[entry] = listerHook.Files()
 		}
 
 		return nil
-	}); err != nil {
-		return DetectRes{}, err
+	})
+	if err != nil {
+		return mainBranchInfo{}, err
 	}
+	return info, nil
+}
 
+type diffInfo struct {
+	entrypoints map[string]DetectEntrypointRes
+}
+
+func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, changes []string) (diffInfo, error) {
 	w, err := walker.New(r.Path, r.Logger.WithGroup("walker:ref"))
 	if err != nil {
-		return DetectRes{}, err
+		return diffInfo{}, err
 	}
+
+	changesByAbsPath := lo.Map(changes, func(change string, _ int) string {
+		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
+		return abs
+	})
 
 	_, refMod, err := mod.Get(mod.WithModDir(r.Path))
 	if err != nil {
-		return DetectRes{}, err
+		return diffInfo{}, err
 	}
 
-	modDiff := mod.Diff(mainBranchMod, refMod)
+	modDiff := mod.Diff(mainInfo.modfile, refMod)
 
 	// In case Golang got updated in go.mod, mark all as changed
 	if modDiff.Type == mod.ChangeGolang {
-		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-			return item, DetectEntrypointRes{Path: item, Changed: true, Reasons: []string{"go version changed"}}
-		})
-		return output, nil
+		return diffInfo{
+			entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
+				return item, DetectEntrypointRes{Path: item, Changed: true, Reasons: []string{"go version changed"}}
+			}),
+		}, nil
 	}
 
+	info := diffInfo{entrypoints: map[string]DetectEntrypointRes{}}
 	for _, entry := range r.Entrypoints {
 		reasons := []string{}
-		changesHook := hook.NewChangeDetector(changed)
+		changesHook := hook.NewChangeDetector(changesByAbsPath)
 		listerHook := hook.NewLister()
 		modHook := hook.NewModDetector(modDiff.Packages.All())
 
 		if err = w.Walk(ctx, entry, changesHook, listerHook, modHook); err != nil {
-			return DetectRes{}, err
+			return diffInfo{}, err
 		}
 
 		if changesHook.Found() {
 			reasons = append(reasons, "files changed")
 		}
 
-		if !lo.ElementsMatch(mainBranchTree[entry], listerHook.Files()) {
+		if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
 			reasons = append(reasons, "files created/deleted")
 		}
 
@@ -163,15 +196,12 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 			reasons = append(reasons, "dependencies changed")
 		}
 
-		output.Entrypoints[entry] = DetectEntrypointRes{
+		info.entrypoints[entry] = DetectEntrypointRes{
 			Path:    entry,
 			Changed: len(reasons) > 0,
 			Reasons: reasons,
 		}
 	}
 
-	output.Stats.EndedAt = time.Now()
-	output.Stats.Duration = output.Stats.EndedAt.Sub(output.Stats.StartedAt) / time.Millisecond
-
-	return output, err
+	return info, nil
 }

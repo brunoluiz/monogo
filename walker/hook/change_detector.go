@@ -10,6 +10,9 @@ type ChangeDetector struct {
 	found bool
 }
 
+// NewChangeDetector detects if packages checked during Do have any
+// matching file passed as an initial argument.
+// `files` must be absolute paths.
 func NewChangeDetector(files []string) *ChangeDetector {
 	return &ChangeDetector{files: files}
 }
