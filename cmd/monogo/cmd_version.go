@@ -13,7 +13,7 @@ var (
 
 type VersionCmd struct{}
 
-func (r *VersionCmd) Run(c *Context) error {
+func (r *VersionCmd) Run(_ *Context) error {
 	s := strings.Join([]string{
 		"app: monogo",
 		fmt.Sprintf("version: %s", version),

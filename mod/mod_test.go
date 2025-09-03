@@ -8,6 +8,7 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+// nolint:funlen
 func TestDiff(t *testing.T) {
 	testCases := []struct {
 		name     string

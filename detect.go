@@ -69,7 +69,7 @@ func NewDetector(
 func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	headHash, headRef, err := r.Git.Head()
 	if err != nil {
-		return DetectRes{}, fmt.Errorf("failed to get head ref: %v", err)
+		return DetectRes{}, fmt.Errorf("failed to get head ref: %w", err)
 	}
 
 	output := DetectRes{
@@ -80,7 +80,7 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 
 	changes, err := r.Git.Diff("main")
 	if err != nil {
-		return DetectRes{}, fmt.Errorf("failed to load diff: %v", err)
+		return DetectRes{}, fmt.Errorf("failed to load diff: %w", err)
 	}
 
 	if len(changes) == 0 {
@@ -153,6 +153,7 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	}
 
 	changesByAbsPath := lo.Map(changes, func(change string, _ int) string {
+		// nolint
 		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
 		return abs
 	})
