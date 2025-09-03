@@ -1,9 +1,14 @@
-.PHONY: lint test all
+.PHONY: all ci lint test build
 
 lint:
-	docker buildx bake lint
+	golangci-lint run ./...
 
 test:
-	docker buildx bake test
+	go test -v ./...
 
-all: lint test
+build:
+	go build -o bin/app ./cmd/monogo
+
+all: lint test build
+
+ci: test build
