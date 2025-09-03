@@ -1,0 +1,31 @@
+# Dockerignore for a Go project
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# IDE settings and cache
+.idea/
+.vscode/
+*.iml
+
+# Git
+.git
+
+# Docker
+Dockerfile
+.dockerignore
+docker-bake.hcl
+
+# Readme
+README.md
+AGENTS.md
