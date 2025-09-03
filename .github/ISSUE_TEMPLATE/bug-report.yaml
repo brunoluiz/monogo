@@ -7,8 +7,6 @@ body:
     attributes:
       value: |
         **🙏 Thanks for taking the time to fill out this bug report.**
-
-        When filling the ticket, try to give as much detail as you can and as well attach logs/dumps from the application. For that you must add `--log ./log.json --log-level debug` when running `xpdig`.
   - type: textarea
     id: description
     attributes:
@@ -42,10 +40,7 @@ body:
     attributes:
       label: "Logs"
       description: |
-        Run the program with `--log ./log.json --log-level debug` and post its output here.
-
-        **Be aware it might have domain names since it dumps all crossplane traces when in DEBUG.**
-        If it can be a problem (eg, real traces, not dev ones), drop `--log-level debug` and use `--log-level info` instead.
+        Run the program with `--log-level debug` and post its output here.
       render: bash
     validations:
       required: true
