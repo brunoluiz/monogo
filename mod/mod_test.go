@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/concordalabs/monogo/mod"
+	"github.com/brunoluiz/monogo/mod"
 	"golang.org/x/mod/modfile"
 )
 

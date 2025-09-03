@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/concordalabs/monogo"
-	"github.com/concordalabs/monogo/git"
+	"github.com/brunoluiz/monogo"
+	"github.com/brunoluiz/monogo/git"
 )
 
 type DetectCmd struct {

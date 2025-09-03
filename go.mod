@@ -1,6 +1,6 @@
-module github.com/concordalabs/monogo
+module github.com/brunoluiz/monogo
 
-go 1.23.4
+go 1.23
 
 require (
 	github.com/alecthomas/kong v1.12.1

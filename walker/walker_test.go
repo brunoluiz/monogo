@@ -8,7 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/concordalabs/monogo/walker"
+	"github.com/brunoluiz/monogo/walker"
 	"golang.org/x/tools/go/packages"
 )
 

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/concordalabs/monogo/git"
-	"github.com/concordalabs/monogo/mod"
-	"github.com/concordalabs/monogo/walker"
-	"github.com/concordalabs/monogo/walker/hook"
+	"github.com/brunoluiz/monogo/git"
+	"github.com/brunoluiz/monogo/mod"
+	"github.com/brunoluiz/monogo/walker"
+	"github.com/brunoluiz/monogo/walker/hook"
 	"github.com/samber/lo"
 	"golang.org/x/mod/modfile"
 )

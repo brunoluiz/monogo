@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/concordalabs/monogo/walker/hook"
+	"github.com/brunoluiz/monogo/walker/hook"
 	"golang.org/x/tools/go/packages"
 )
 
