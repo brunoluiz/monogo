@@ -65,12 +65,12 @@ entrypoints. In the case below, only `./cmd/hello` needs to be re-built.
 
 ### Linux and Windows
 
-[Check the releases section](https://github.com/brunoluiz/xpdig/releases) for more information details.
+[Check the releases section](https://github.com/brunoluiz/monogo/releases) for more information details.
 
 ### MacOS
 
 ```
-brew install brunoluiz/tap/xpdig
+brew install brunoluiz/tap/monogo
 ```
 
 ### Other
