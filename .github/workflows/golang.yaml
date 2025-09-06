@@ -24,4 +24,4 @@ jobs:
           version: v2.4
 
       - run: |-
-          make test bild
+          make ci
