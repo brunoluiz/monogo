@@ -81,8 +81,6 @@ go install github.com/brunoluiz/monogo/cmd/monogo@latest
 
 ## 📋 TODO
 
-- Standardised CI via Docker Bake
-- Run go routines for each entry point?
-- Optimise the time spent on the package lib
-- Upgrade Go version
-- Can Dockerfile be dictated by the go.mod?
+- Standardised local/CI via Nix
+- Optimise the time spent on the `golang.org/x/tools/go/packages` module
+- What is the minimum Go version it should use?
