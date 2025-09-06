@@ -78,7 +78,7 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		Entrypoints: map[string]DetectEntrypointRes{},
 	}
 
-	changes, err := r.Git.Diff("main")
+	changes, err := r.Git.Diff(r.MainBranch)
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failed to load diff: %w", err)
 	}
