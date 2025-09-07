@@ -81,6 +81,6 @@ go install github.com/brunoluiz/monogo/cmd/monogo@latest
 
 ## 📋 TODO
 
-- Standardised local/CI via Nix
+- Standardised local/CI via Nix a
 - Optimise the time spent on the `golang.org/x/tools/go/packages` module
 - What is the minimum Go version it should use?
