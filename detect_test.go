@@ -28,19 +28,19 @@ func TestDetector_Run(t *testing.T) {
 		name    string
 		fields  fields
 		prepare func(t *testing.T, repo *git.Repository)
-		assert  func(t *testing.T, res monogo.DetectRes, err error)
+		assert  func(t *testing.T, res monogo.DetectRes)
 	}{
 		{
 			name: "should not detect any changes",
 			fields: fields{
 				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.False(t, res.Entrypoints["cmd/app1"].Changed)
 				require.False(t, res.Entrypoints["cmd/app2"].Changed)
 				require.False(t, res.Entrypoints["cmd/app3"].Changed)
 			},
+			prepare: func(t *testing.T, repo *git.Repository) {},
 		},
 		{
 			name: "should detect go version upgrade",
@@ -64,8 +64,7 @@ func TestDetector_Run(t *testing.T) {
 				_, err = w.Commit("change go version", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, res.Entrypoints["cmd/app1"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app1"].Reasons, "go version changed")
 				require.True(t, res.Entrypoints["cmd/app2"].Changed)
@@ -97,8 +96,7 @@ func TestDetector_Run(t *testing.T) {
 				_, err = w.Commit("bump zap version", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, res.Entrypoints["cmd/app1"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app1"].Reasons, "dependencies changed")
 				require.True(t, res.Entrypoints["cmd/app2"].Changed)
@@ -125,8 +123,7 @@ func TestDetector_Run(t *testing.T) {
 				_, err = w.Commit("add new file", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, res.Entrypoints["cmd/app1"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app1"].Reasons, "files created/deleted")
 				require.False(t, res.Entrypoints["cmd/app2"].Changed)
@@ -162,8 +159,7 @@ func Log(msg string) {
 				_, err = w.Commit("change shared file", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, res.Entrypoints["cmd/app1"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app1"].Reasons, "files changed")
 				require.True(t, res.Entrypoints["cmd/app2"].Changed)
@@ -196,8 +192,7 @@ func B() string {
 				_, err = w.Commit("change pkgB file", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.False(t, res.Entrypoints["cmd/app1"].Changed)
 				require.True(t, res.Entrypoints["cmd/app2"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app2"].Reasons, "files changed")
@@ -223,8 +218,7 @@ func B() string {
 				_, err = w.Commit("delete file", &git.CommitOptions{})
 				require.NoError(t, err)
 			},
-			assert: func(t *testing.T, res monogo.DetectRes, err error) {
-				require.NoError(t, err)
+			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, res.Entrypoints["cmd/app1"].Changed)
 				require.Contains(t, res.Entrypoints["cmd/app1"].Reasons, "files created/deleted")
 				require.False(t, res.Entrypoints["cmd/app2"].Changed)
@@ -259,77 +253,36 @@ func B() string {
 			err = repo.Storer.SetReference(plumbing.NewSymbolicReference(plumbing.HEAD, plumbing.NewBranchReferenceName("main")))
 			require.NoError(t, err)
 			// checkout to a new branch based on main
-			branchName := plumbing.NewBranchReferenceName("test-branch")
-			t.Log("Directory:", tmpDir)
-			err = w.Checkout(&git.CheckoutOptions{
+			require.NoError(t, w.Checkout(&git.CheckoutOptions{
 				Create: true,
-				Branch: branchName,
+				Branch: plumbing.NewBranchReferenceName("test-branch"),
 				Hash:   ref.Hash(),
-			})
-			require.NoError(t, err)
-
-			// prepare
-			if tt.prepare != nil {
-				tt.prepare(t, repo)
-			}
+			}))
 
 			// run detector
 			g, err := xgit.New(xgit.WithPath(tmpDir))
 			require.NoError(t, err)
 			d := monogo.NewDetector(tmpDir, tt.fields.entrypoints, string(plumbing.NewBranchReferenceName("main")), slog.Default(), g)
-			res, err := d.Run(context.Background())
 
-			// assert
-			if tt.assert != nil {
-				tt.assert(t, res, err)
-			}
+			tt.prepare(t, repo)
+			res, err := d.Run(context.Background())
+			require.NoError(t, err)
+			tt.assert(t, res)
 		})
 	}
 }
 
 func setupTestRepo(t *testing.T, tmpDir string) *git.Repository {
 	t.Helper()
+	// copy folder
+	require.NoError(t, os.CopyFS(tmpDir, os.DirFS("./testdata/test-project")))
 
-	// copy testdata to tmpDir
-	err := filepath.Walk("./testdata/test-project", func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// skip .git folder
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
-		}
-
-		relPath, err := filepath.Rel("./testdata/test-project", path)
-		if err != nil {
-			return err
-		}
-		targetPath := filepath.Join(tmpDir, relPath)
-
-		// create dir
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		// copy file
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(targetPath, data, info.Mode())
-	})
-	require.NoError(t, err)
-
-	// init git repo with main as default branch
+	// setup git
 	repo, err := git.PlainInitWithOptions(tmpDir, &git.PlainInitOptions{
 		InitOptions: git.InitOptions{
 			DefaultBranch: plumbing.NewBranchReferenceName("main"),
 		},
-		Bare: false,
 	})
 	require.NoError(t, err)
-
 	return repo
 }
