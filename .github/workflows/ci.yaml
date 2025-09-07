@@ -27,7 +27,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/golangci-lint
-          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/.golangci.yml') }}
+          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/.golangci.yaml') }}
           restore-keys: ${{ runner.os }}-golangci-lint-
 
       - name: Run CI
