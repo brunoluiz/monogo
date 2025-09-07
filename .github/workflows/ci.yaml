@@ -30,5 +30,7 @@ jobs:
           key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/.golangci.yaml') }}
           restore-keys: ${{ runner.os }}-golangci-lint-
 
+      - run: ls ~/.cache
+
       - name: CI
         run: make all

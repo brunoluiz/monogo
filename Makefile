@@ -1,4 +1,4 @@
-.PHONY: all ci lint test build
+.PHONY: all lint test build
 
 lint:
 	golangci-lint run ./...
@@ -10,5 +10,3 @@ build:
 	go build -o bin/app ./cmd/monogo
 
 all: lint test build
-
-ci: test build
