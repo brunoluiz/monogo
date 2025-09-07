@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/brunoluiz/monogo"
@@ -234,7 +235,9 @@ func B() string {
 			// t.Parallel()
 
 			// setup
-			tmpDir := t.TempDir()
+			tmpDir := filepath.Join("./tmp", sanitizeTestName(tt.name))
+			require.NoError(t, os.RemoveAll(tmpDir))
+			require.NoError(t, os.MkdirAll(tmpDir, 0755))
 			repo := setupTestRepo(t, tmpDir)
 			w, err := repo.Worktree()
 			require.NoError(t, err)
@@ -285,4 +288,11 @@ func setupTestRepo(t *testing.T, tmpDir string) *git.Repository {
 	})
 	require.NoError(t, err)
 	return repo
+}
+
+// sanitizeTestName replaces spaces and slashes with underscores for filesystem safety
+func sanitizeTestName(name string) string {
+	name = strings.ReplaceAll(name, " ", "_")
+	name = strings.ReplaceAll(name, "/", "_")
+	return name
 }
