@@ -122,6 +122,7 @@ func (g *Git) Diff(compareRef string) ([]string, error) {
 		}
 
 		if action == merkletrie.Delete {
+			files = append(files, change.From.Name)
 			continue
 		}
 

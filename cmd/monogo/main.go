@@ -29,7 +29,7 @@ func main() {
 	defer signalStop()
 
 	app := kong.Parse(&cli)
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: cli.LogLevel,
 	}))
 

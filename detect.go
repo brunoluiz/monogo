@@ -15,7 +15,18 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+type ChangeReason string
+
+const (
+	ChangedFilesReason         ChangeReason = "files changed"
+	CreatedDeletedFilesReasons ChangeReason = "files created/deleted"
+	DependenciesChangedReason  ChangeReason = "dependencies changed"
+	GoVersionChangedReason     ChangeReason = "go version changed"
+	NoChangesReason            ChangeReason = "no changes"
+)
+
 type DetectRes struct {
+	Skipped     bool                           `json:"skipped"`
 	Git         DetectGitRes                   `json:"git"`
 	Stats       DetectStatsRes                 `json:"stats"`
 	Entrypoints map[string]DetectEntrypointRes `json:"entrypoints"`
@@ -33,9 +44,9 @@ type DetectStatsRes struct {
 }
 
 type DetectEntrypointRes struct {
-	Path    string   `json:"path"`
-	Changed bool     `json:"changed"`
-	Reasons []string `json:"reasons"`
+	Path    string         `json:"path"`
+	Changed bool           `json:"changed"`
+	Reasons []ChangeReason `json:"reasons"`
 }
 
 type Detector struct {
@@ -78,14 +89,14 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		Entrypoints: map[string]DetectEntrypointRes{},
 	}
 
-	changes, err := r.Git.Diff("main")
+	changes, err := r.Git.Diff(r.MainBranch)
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failed to load diff: %w", err)
 	}
 
 	if len(changes) == 0 {
 		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []string{}}
+			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoChangesReason}}
 		})
 		return output, nil
 	}
@@ -169,14 +180,14 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	if modDiff.Type == mod.ChangeGolang {
 		return diffInfo{
 			entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-				return item, DetectEntrypointRes{Path: item, Changed: true, Reasons: []string{"go version changed"}}
+				return item, DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
 			}),
 		}, nil
 	}
 
 	info := diffInfo{entrypoints: map[string]DetectEntrypointRes{}}
 	for _, entry := range r.Entrypoints {
-		reasons := []string{}
+		reasons := []ChangeReason{}
 		changesHook := hook.NewChangeDetector(changesByAbsPath)
 		listerHook := hook.NewLister()
 		modHook := hook.NewModDetector(modDiff.Packages.All())
@@ -186,15 +197,15 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 		}
 
 		if changesHook.Found() {
-			reasons = append(reasons, "files changed")
+			reasons = append(reasons, ChangedFilesReason)
 		}
 
 		if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
-			reasons = append(reasons, "files created/deleted")
+			reasons = append(reasons, CreatedDeletedFilesReasons)
 		}
 
 		if modHook.Found() {
-			reasons = append(reasons, "dependencies changed")
+			reasons = append(reasons, DependenciesChangedReason)
 		}
 
 		info.entrypoints[entry] = DetectEntrypointRes{

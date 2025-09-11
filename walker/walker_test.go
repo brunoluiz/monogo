@@ -23,24 +23,24 @@ func (m *mockHook) Do(p *packages.Package) error {
 
 func TestWalker_Walk(t *testing.T) {
 	testCases := []struct {
-		name          string
-		entry         string
-		expectedPaths []string
+		name             string
+		entry            string
+		expectedPkgPaths []string
 	}{
 		{
-			name:          "entry from pkgC",
-			entry:         "test/project/pkgC",
-			expectedPaths: []string{"test/project/pkgC", "test/project/pkgA", "test/project/pkgB"},
+			name:             "entry from pkgC",
+			entry:            "pkgC",
+			expectedPkgPaths: []string{"test/project/pkgC", "test/project/pkgA", "test/project/pkgB"},
 		},
 		{
-			name:          "entry from pkgA",
-			entry:         "test/project/pkgA",
-			expectedPaths: []string{"test/project/pkgA", "test/project/pkgB"},
+			name:             "entry from pkgA",
+			entry:            "pkgA",
+			expectedPkgPaths: []string{"test/project/pkgA", "test/project/pkgB"},
 		},
 		{
-			name:          "entry from pkgB",
-			entry:         "test/project/pkgB",
-			expectedPaths: []string{"test/project/pkgB"},
+			name:             "entry from pkgB",
+			entry:            "./pkgB",
+			expectedPkgPaths: []string{"test/project/pkgB"},
 		},
 	}
 
@@ -58,16 +58,16 @@ func TestWalker_Walk(t *testing.T) {
 				t.Fatalf("failed to walk: %s", err)
 			}
 
-			var gotPaths []string
+			var gotPkgPaths []string
 			for _, p := range hook.calledWith {
-				gotPaths = append(gotPaths, p.PkgPath)
+				gotPkgPaths = append(gotPkgPaths, p.PkgPath)
 			}
 
-			sort.Strings(gotPaths)
-			sort.Strings(tc.expectedPaths)
+			sort.Strings(gotPkgPaths)
+			sort.Strings(tc.expectedPkgPaths)
 
-			if !reflect.DeepEqual(gotPaths, tc.expectedPaths) {
-				t.Errorf("unexpected packages, got %+v, want %+v", gotPaths, tc.expectedPaths)
+			if !reflect.DeepEqual(gotPkgPaths, tc.expectedPkgPaths) {
+				t.Errorf("unexpected packages, got %+v, want %+v", gotPkgPaths, tc.expectedPkgPaths)
 			}
 		})
 	}

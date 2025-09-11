@@ -81,4 +81,4 @@ go install github.com/brunoluiz/monogo/cmd/monogo@latest
 
 ## 📋 TODO
 
-- Optimise the time spent on the `golang.org/x/tools/go/packages` module
+- Optimise the time spent on the `golang.org/x/tools/go/packages` module (parallel routines?)

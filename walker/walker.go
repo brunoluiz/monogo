@@ -7,13 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/tools/go/packages"
 )
 
 type Walker struct {
-	cache    map[string]*packages.Package
+	cache interface {
+		get(k string) (*packages.Package, bool)
+		set(k string, p *packages.Package)
+	}
 	logger   *slog.Logger
 	basePath string
 	module   string
@@ -26,7 +30,7 @@ func New(basePath string, logger *slog.Logger) (*Walker, error) {
 	}
 
 	return &Walker{
-		cache:    make(map[string]*packages.Package),
+		cache:    newCache(),
 		logger:   logger,
 		basePath: basePath,
 		module:   module,
@@ -48,10 +52,12 @@ func (w *Walker) walk(ctx context.Context, entry string, hooks ...Hook) error {
 		return nil
 	default:
 		// Load all packages in the codebase
+		// NOTE: The pattern (value given by `entry`) must be prefixed with `./` as otherwise it might end up with a package name
+		// This becomes a problem when the user configures entrypoints as `cmd/bla` instead of `./cmd/bla`
 		pkgs, err := packages.Load(&packages.Config{
 			Mode: packages.NeedImports | packages.NeedCompiledGoFiles | packages.NeedDeps | packages.NeedEmbedFiles | packages.NeedEmbedPatterns | packages.NeedName,
 			Dir:  w.basePath,
-		}, entry)
+		}, "./"+entry)
 		if err != nil {
 			return fmt.Errorf("failed to load packages: %w", err)
 		}
@@ -72,14 +78,13 @@ func (w *Walker) handlePackage(
 	pkg *packages.Package,
 	hooks ...Hook,
 ) error {
-	if _, found := w.cache[pkg.PkgPath]; found {
-		return nil
+	if len(pkg.Errors) != 0 {
+		return fmt.Errorf("package %s contains errors: %+v", pkg.PkgPath, pkg.Errors)
 	}
 
 	if !strings.HasPrefix(pkg.PkgPath, w.module) {
 		return nil
 	}
-	w.cache[pkg.PkgPath] = pkg
 
 	for _, h := range hooks {
 		if err := h.Do(pkg); err != nil {
@@ -87,11 +92,17 @@ func (w *Walker) handlePackage(
 		}
 	}
 
+	// NOTE: Not sure if this cache is correctly placed yet
+	if _, found := w.cache.get(pkg.PkgPath); found {
+		return nil
+	}
+
 	for _, imported := range pkg.Imports {
 		if err := w.handlePackage(ctx, imported, hooks...); err != nil {
 			return err
 		}
 	}
+	w.cache.set(pkg.PkgPath, pkg)
 
 	return nil
 }
@@ -105,4 +116,26 @@ func getModuleName(filePath string) (string, error) {
 	}
 
 	return modfile.ModulePath(data), nil
+}
+
+type cache struct {
+	sync.RWMutex
+	cache map[string]*packages.Package
+}
+
+func newCache() *cache {
+	return &cache{RWMutex: sync.RWMutex{}, cache: map[string]*packages.Package{}}
+}
+
+func (c *cache) get(k string) (*packages.Package, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	v, ok := c.cache[k]
+	return v, ok
+}
+
+func (c *cache) set(k string, p *packages.Package) {
+	c.Lock()
+	defer c.Unlock()
+	c.cache[k] = p
 }
