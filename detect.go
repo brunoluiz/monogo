@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/brunoluiz/monogo/git"
@@ -13,6 +14,7 @@ import (
 	"github.com/brunoluiz/monogo/walker/hook"
 	"github.com/samber/lo"
 	"golang.org/x/mod/modfile"
+	"golang.org/x/sync/errgroup"
 )
 
 type ChangeReason string
@@ -22,7 +24,7 @@ const (
 	CreatedDeletedFilesReasons ChangeReason = "files created/deleted"
 	DependenciesChangedReason  ChangeReason = "dependencies changed"
 	GoVersionChangedReason     ChangeReason = "go version changed"
-	NoChangesReason            ChangeReason = "no changes"
+	NoGitChangesReason         ChangeReason = "no git changes"
 )
 
 type DetectRes struct {
@@ -83,7 +85,7 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		return DetectRes{}, fmt.Errorf("failed to get head ref: %w", err)
 	}
 
-	output := DetectRes{
+	res := DetectRes{
 		Git:         DetectGitRes{Hash: headHash, Ref: headRef},
 		Stats:       DetectStatsRes{StartedAt: time.Now(), EndedAt: time.Now()},
 		Entrypoints: map[string]DetectEntrypointRes{},
@@ -95,10 +97,10 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	}
 
 	if len(changes) == 0 {
-		output.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoChangesReason}}
+		res.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
+			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoGitChangesReason}}
 		})
-		return output, nil
+		return res, nil
 	}
 
 	mainInfo, err := r.getMainBranchInfo(ctx)
@@ -111,11 +113,10 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		return DetectRes{}, fmt.Errorf("failure while getting diff info: %w", err)
 	}
 
-	output.Entrypoints = diffInfo.entrypoints
-	output.Stats.EndedAt = time.Now()
-	output.Stats.Duration = output.Stats.EndedAt.Sub(output.Stats.StartedAt) / time.Millisecond
-
-	return output, err
+	res.Entrypoints = diffInfo.entrypoints
+	res.Stats.EndedAt = time.Now()
+	res.Stats.Duration = res.Stats.EndedAt.Sub(res.Stats.StartedAt) / time.Millisecond
+	return res, err
 }
 
 type mainBranchInfo struct {
@@ -125,7 +126,6 @@ type mainBranchInfo struct {
 
 func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error) {
 	info := mainBranchInfo{filesByEntrypoint: map[string][]string{}}
-
 	err := r.Git.RunOnRef(r.MainBranch, func() error {
 		w, err := walker.New(r.Path, r.Logger.WithGroup("walker:main"))
 		if err != nil {
@@ -137,20 +137,31 @@ func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error
 			return err
 		}
 
+		// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
+		eg, ctx := errgroup.WithContext(ctx)
+		rw := sync.RWMutex{}
 		for _, entry := range r.Entrypoints {
-			listerHook := hook.NewLister()
-			if err = w.Walk(ctx, entry, listerHook); err != nil {
-				return err
-			}
-			info.filesByEntrypoint[entry] = listerHook.Files()
+			entry := entry
+			eg.Go(func() error {
+				defer rw.Unlock()
+
+				// Walks through all packages for this entry
+				listerHook := hook.NewLister()
+				if err := w.Walk(ctx, entry, listerHook); err != nil {
+					return err
+				}
+
+				// Write operations to shared memory below
+				rw.Lock()
+				info.filesByEntrypoint[entry] = listerHook.Files()
+				return nil
+			})
 		}
 
-		return nil
+		return eg.Wait()
 	})
-	if err != nil {
-		return mainBranchInfo{}, err
-	}
-	return info, nil
+
+	return info, err
 }
 
 type diffInfo struct {
@@ -174,9 +185,8 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 		return diffInfo{}, err
 	}
 
+	// In case Golang got updated, mark all as changed
 	modDiff := mod.Diff(mainInfo.modfile, refMod)
-
-	// In case Golang got updated in go.mod, mark all as changed
 	if modDiff.Type == mod.ChangeGolang {
 		return diffInfo{
 			entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
@@ -185,35 +195,45 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 		}, nil
 	}
 
+	// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
+	eg, ctx := errgroup.WithContext(ctx)
+	rw := sync.RWMutex{}
 	info := diffInfo{entrypoints: map[string]DetectEntrypointRes{}}
 	for _, entry := range r.Entrypoints {
-		reasons := []ChangeReason{}
-		changesHook := hook.NewChangeDetector(changesByAbsPath)
-		listerHook := hook.NewLister()
-		modHook := hook.NewModDetector(modDiff.Packages.All())
+		entry := entry
+		eg.Go(func() error {
+			defer rw.Unlock()
 
-		if err = w.Walk(ctx, entry, changesHook, listerHook, modHook); err != nil {
-			return diffInfo{}, err
-		}
+			// Walks through all packages for this entry
+			reasons := []ChangeReason{}
+			changesHook := hook.NewChangeDetector(changesByAbsPath)
+			listerHook := hook.NewLister()
+			modHook := hook.NewModDetector(modDiff.Packages.All())
+			if err := w.Walk(ctx, entry, changesHook, listerHook, modHook); err != nil {
+				return err
+			}
 
-		if changesHook.Found() {
-			reasons = append(reasons, ChangedFilesReason)
-		}
+			// Assertions and reason mapping
+			if changesHook.Found() {
+				reasons = append(reasons, ChangedFilesReason)
+			}
+			if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
+				reasons = append(reasons, CreatedDeletedFilesReasons)
+			}
+			if modHook.Found() {
+				reasons = append(reasons, DependenciesChangedReason)
+			}
 
-		if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
-			reasons = append(reasons, CreatedDeletedFilesReasons)
-		}
-
-		if modHook.Found() {
-			reasons = append(reasons, DependenciesChangedReason)
-		}
-
-		info.entrypoints[entry] = DetectEntrypointRes{
-			Path:    entry,
-			Changed: len(reasons) > 0,
-			Reasons: reasons,
-		}
+			// Write operations to shared memory below
+			rw.Lock()
+			info.entrypoints[entry] = DetectEntrypointRes{
+				Path:    entry,
+				Changed: len(reasons) > 0,
+				Reasons: reasons,
+			}
+			return nil
+		})
 	}
 
-	return info, nil
+	return info, eg.Wait()
 }
