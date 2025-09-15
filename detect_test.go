@@ -253,7 +253,10 @@ func B() string {
 			// run detector
 			g, err := xgit.New(xgit.WithPath(tmpDir))
 			require.NoError(t, err)
-			d := monogo.NewDetector(tmpDir, tt.fields.entrypoints, string(plumbing.NewBranchReferenceName("main")), slog.Default(), g)
+			d := monogo.NewDetector(tt.fields.entrypoints, slog.Default(), g,
+				monogo.WithPath(tmpDir),
+				monogo.WithMainBranch(string(plumbing.NewBranchReferenceName("main"))),
+			)
 
 			tt.prepare(t, w)
 			res, err := d.Run(context.Background())

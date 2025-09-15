@@ -59,20 +59,42 @@ type Detector struct {
 	Git         *git.Git
 }
 
+type WithDetectOpt func(*detectorConfig)
+
+type detectorConfig struct {
+	path       string
+	mainBranch string
+}
+
+func WithPath(path string) func(*detectorConfig) {
+	return func(d *detectorConfig) {
+		d.path = path
+	}
+}
+
+func WithMainBranch(branch string) func(*detectorConfig) {
+	return func(d *detectorConfig) {
+		d.mainBranch = branch
+	}
+}
+
 func NewDetector(
-	path string,
 	entrypoints []string,
-	mainBranch string,
 	logger *slog.Logger,
 	g *git.Git,
+	opts ...WithDetectOpt,
 ) *Detector {
-	if mainBranch == "" {
-		mainBranch = "main"
+	cfg := detectorConfig{
+		mainBranch: "main",
+		path:       ".",
+	}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	return &Detector{
-		Path:        path,
-		MainBranch:  mainBranch,
+		Path:        cfg.path,
+		MainBranch:  cfg.mainBranch,
 		Entrypoints: entrypoints,
 		Logger:      logger,
 		Git:         g,

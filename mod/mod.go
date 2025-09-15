@@ -9,6 +9,16 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+type ChangeType int
+
+const (
+	ChangeUnknown ChangeType = iota
+	ChangeNone
+	ChangePackages
+	ChangeGolang
+	ChangeGolangToolchain
+)
+
 type WithOpt func(c *options)
 
 type options struct {
@@ -21,7 +31,6 @@ func WithModDir(path string) WithOpt {
 	}
 }
 
-// TODO: make the go.mod path customisable
 func Get(opts ...WithOpt) (string, *modfile.File, error) {
 	c := options{path: "go.mod"}
 	for _, opt := range opts {
@@ -39,16 +48,6 @@ func Get(opts ...WithOpt) (string, *modfile.File, error) {
 
 	return modfile.ModulePath(data), m, nil
 }
-
-type ChangeType int
-
-const (
-	ChangeUnknown ChangeType = iota
-	ChangeNone
-	ChangePackages
-	ChangeGolang
-	ChangeGolangToolchain
-)
 
 type ChangedPackages struct {
 	Added   []string

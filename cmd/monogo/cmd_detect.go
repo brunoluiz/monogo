@@ -21,7 +21,10 @@ func (r *DetectCmd) Run(c *Context) error {
 		return fmt.Errorf("failed to open git repository: %w", err)
 	}
 
-	detector := monogo.NewDetector(r.Path, r.Entrypoints, r.MainBranch, c.Logger, g)
+	detector := monogo.NewDetector(r.Entrypoints, c.Logger, g,
+		monogo.WithMainBranch(r.MainBranch),
+		monogo.WithPath(r.Path),
+	)
 	out, err := detector.Run(c.Context)
 	if err != nil {
 		return fmt.Errorf("failed to run detect command: %w", err)
