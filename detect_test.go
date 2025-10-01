@@ -7,17 +7,26 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/brunoluiz/monogo"
 	xgit "github.com/brunoluiz/monogo/git"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/require"
 )
 
 // nolint: funlen
 func TestDetector_Run(t *testing.T) {
 	t.Parallel()
+
+	// Test author for all commits
+	testAuthor := &object.Signature{
+		Name:  "Test User",
+		Email: "test@example.com",
+		When:  time.Now(),
+	}
 
 	type fields struct {
 		entrypoints []string
@@ -58,7 +67,9 @@ func TestDetector_Run(t *testing.T) {
 
 				_, err = w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("change go version", &git.CommitOptions{})
+				_, err = w.Commit("change go version", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -89,7 +100,9 @@ func TestDetector_Run(t *testing.T) {
 
 				_, err = w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("bump zap version", &git.CommitOptions{})
+				_, err = w.Commit("bump zap version", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -114,7 +127,9 @@ func TestDetector_Run(t *testing.T) {
 
 				_, err := w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("add new file", &git.CommitOptions{})
+				_, err = w.Commit("add new file", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -148,7 +163,9 @@ func Log(msg string) {
 
 				_, err := w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("change shared file", &git.CommitOptions{})
+				_, err = w.Commit("change shared file", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -179,7 +196,9 @@ func B() string {
 
 				_, err := w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("change pkgB file", &git.CommitOptions{})
+				_, err = w.Commit("change pkgB file", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -203,7 +222,9 @@ func B() string {
 
 				_, err := w.Remove(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("delete file", &git.CommitOptions{})
+				_, err = w.Commit("delete file", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -243,7 +264,9 @@ func main() {
 
 				_, err := w.Add(targetFile)
 				require.NoError(t, err)
-				_, err = w.Commit("add new cmd app4", &git.CommitOptions{})
+				_, err = w.Commit("add new cmd app4", &git.CommitOptions{
+					Author: testAuthor,
+				})
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
@@ -280,7 +303,9 @@ func main() {
 			// initial commit
 			_, err = w.Add(".")
 			require.NoError(t, err)
-			_, err = w.Commit("initial commit", &git.CommitOptions{})
+			_, err = w.Commit("initial commit", &git.CommitOptions{
+				Author: testAuthor,
+			})
 			require.NoError(t, err)
 
 			// checkout to a new branch based on main
