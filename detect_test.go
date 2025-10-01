@@ -214,6 +214,48 @@ func B() string {
 				require.Contains(t, res.Entrypoints["cmd/app3"].Reasons, monogo.CreatedDeletedFilesReasons)
 			},
 		},
+		{
+			name: "should detect new cmd that does not exist in main branch",
+			fields: fields{
+				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3", "cmd/app4"},
+			},
+			prepare: func(t *testing.T, w *git.Worktree) {
+				// create new cmd directory and main.go that doesn't exist in main branch
+				targetDir := filepath.Join("cmd", "app4")
+				targetDirWorktree := filepath.Join(w.Filesystem.Root(), targetDir)
+				require.NoError(t, os.MkdirAll(targetDirWorktree, 0o755))
+
+				targetFile := filepath.Join(targetDir, "main.go")
+				targetFileWorktree := filepath.Join(w.Filesystem.Root(), targetFile)
+				content := `package main
+
+import (
+	"fmt"
+	"test-project/pkg/shared"
+)
+
+func main() {
+	shared.Log("Hello from app4")
+	fmt.Println("App4 running")
+}
+`
+				require.NoError(t, os.WriteFile(targetFileWorktree, []byte(content), 0o600))
+
+				_, err := w.Add(targetFile)
+				require.NoError(t, err)
+				_, err = w.Commit("add new cmd app4", &git.CommitOptions{})
+				require.NoError(t, err)
+			},
+			assert: func(t *testing.T, res monogo.DetectRes) {
+				// existing apps should not be affected
+				require.False(t, res.Entrypoints["cmd/app1"].Changed)
+				require.False(t, res.Entrypoints["cmd/app2"].Changed)
+				require.False(t, res.Entrypoints["cmd/app3"].Changed)
+				// new app should be detected as changed (since it doesn't exist in main)
+				require.True(t, res.Entrypoints["cmd/app4"].Changed)
+				require.Contains(t, res.Entrypoints["cmd/app4"].Reasons, monogo.CreatedDeletedFilesReasons)
+			},
+		},
 	}
 
 	for _, tt := range tests {

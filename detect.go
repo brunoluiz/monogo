@@ -165,17 +165,21 @@ func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error
 		for _, entry := range r.Entrypoints {
 			entry := entry
 			eg.Go(func() error {
-				defer rw.Unlock()
-
 				// Walks through all packages for this entry
 				listerHook := hook.NewLister()
-				if err := w.Walk(ctx, entry, listerHook); err != nil {
-					return err
-				}
+				err := w.Walk(ctx, entry, listerHook)
 
 				// Write operations to shared memory below
 				rw.Lock()
-				info.filesByEntrypoint[entry] = listerHook.Files()
+				defer rw.Unlock()
+
+				if err != nil {
+					// If the entrypoint doesn't exist in main branch, treat as empty
+					r.Logger.Debug("entrypoint not found in main branch", "entry", entry, "error", err)
+					info.filesByEntrypoint[entry] = []string{}
+				} else {
+					info.filesByEntrypoint[entry] = listerHook.Files()
+				}
 				return nil
 			})
 		}
@@ -224,8 +228,6 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	for _, entry := range r.Entrypoints {
 		entry := entry
 		eg.Go(func() error {
-			defer rw.Unlock()
-
 			// Walks through all packages for this entry
 			reasons := []ChangeReason{}
 			changesHook := hook.NewChangeDetector(changesByAbsPath)
@@ -248,6 +250,7 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 
 			// Write operations to shared memory below
 			rw.Lock()
+			defer rw.Unlock()
 			info.entrypoints[entry] = DetectEntrypointRes{
 				Path:    entry,
 				Changed: len(reasons) > 0,
