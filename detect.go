@@ -28,10 +28,10 @@ const (
 )
 
 type DetectRes struct {
-	Skipped     bool                           `json:"skipped"`
-	Git         DetectGitRes                   `json:"git"`
-	Stats       DetectStatsRes                 `json:"stats"`
-	Entrypoints map[string]DetectEntrypointRes `json:"entrypoints"`
+	Skipped     bool                  `json:"skipped"`
+	Git         DetectGitRes          `json:"git"`
+	Stats       DetectStatsRes        `json:"stats"`
+	Entrypoints []DetectEntrypointRes `json:"entrypoints"`
 }
 
 type DetectGitRes struct {
@@ -110,7 +110,7 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	res := DetectRes{
 		Git:         DetectGitRes{Hash: headHash, Ref: headRef},
 		Stats:       DetectStatsRes{StartedAt: time.Now(), EndedAt: time.Now()},
-		Entrypoints: map[string]DetectEntrypointRes{},
+		Entrypoints: []DetectEntrypointRes{},
 	}
 
 	changes, err := r.Git.Diff(r.MainBranch)
@@ -119,8 +119,8 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	}
 
 	if len(changes) == 0 {
-		res.Entrypoints = lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-			return item, DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoGitChangesReason}}
+		res.Entrypoints = lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
+			return DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoGitChangesReason}}
 		})
 		return res, nil
 	}
@@ -191,7 +191,7 @@ func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error
 }
 
 type diffInfo struct {
-	entrypoints map[string]DetectEntrypointRes
+	entrypoints []DetectEntrypointRes
 }
 
 func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, changes []string) (diffInfo, error) {
@@ -215,8 +215,8 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	modDiff := mod.Diff(mainInfo.modfile, refMod)
 	if modDiff.Type == mod.ChangeGolang {
 		return diffInfo{
-			entrypoints: lo.SliceToMap(r.Entrypoints, func(item string) (string, DetectEntrypointRes) {
-				return item, DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
+			entrypoints: lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
+				return DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
 			}),
 		}, nil
 	}
@@ -224,7 +224,7 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
 	eg, ctx := errgroup.WithContext(ctx)
 	rw := sync.RWMutex{}
-	info := diffInfo{entrypoints: map[string]DetectEntrypointRes{}}
+	info := diffInfo{entrypoints: []DetectEntrypointRes{}}
 	for _, entry := range r.Entrypoints {
 		entry := entry
 		eg.Go(func() error {
@@ -251,11 +251,11 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 			// Write operations to shared memory below
 			rw.Lock()
 			defer rw.Unlock()
-			info.entrypoints[entry] = DetectEntrypointRes{
+			info.entrypoints = append(info.entrypoints, DetectEntrypointRes{
 				Path:    entry,
 				Changed: len(reasons) > 0,
 				Reasons: reasons,
-			}
+			})
 			return nil
 		})
 	}
