@@ -28,7 +28,7 @@ const (
 )
 
 type DetectRes struct {
-	Skipped     bool                  `json:"skipped"`
+	Changed     bool                  `json:"changed"`
 	Git         DetectGitRes          `json:"git"`
 	Stats       DetectStatsRes        `json:"stats"`
 	Entrypoints []DetectEntrypointRes `json:"entrypoints"`
@@ -138,6 +138,9 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	res.Entrypoints = diffInfo.entrypoints
 	res.Stats.EndedAt = time.Now()
 	res.Stats.Duration = res.Stats.EndedAt.Sub(res.Stats.StartedAt) / time.Millisecond
+	res.Changed = lo.SomeBy(res.Entrypoints, func(item DetectEntrypointRes) bool {
+		return item.Changed
+	})
 	return res, err
 }
 
