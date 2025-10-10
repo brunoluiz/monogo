@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -155,20 +157,40 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 
 type mainBranchInfo struct {
 	filesByEntrypoint map[string][]string
-	modfile           *modfile.File
+	modfiles          map[string]*modfile.File // key is module path
+	isWorkspace       bool
 }
 
 func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error) {
-	info := mainBranchInfo{filesByEntrypoint: map[string][]string{}}
+	info := mainBranchInfo{filesByEntrypoint: map[string][]string{}, modfiles: map[string]*modfile.File{}}
 	err := r.Git.RunOnRef(r.BaseRef, func() error {
 		w, err := walker.New(r.Path, r.Logger.WithGroup("walker:main"))
 		if err != nil {
 			return err
 		}
 
-		_, info.modfile, err = mod.Get(mod.WithModDir(r.Path))
-		if err != nil {
-			return err
+		// Check if workspace
+		workPath := filepath.Join(r.Path, "go.work")
+		if _, err := os.Stat(workPath); err == nil {
+			info.isWorkspace = true
+			modules, err := mod.GetWorkspaceModules(mod.WithWorkDir(r.Path))
+			if err != nil {
+				return err
+			}
+			for _, modPath := range modules {
+				modDir := filepath.Join(r.Path, modPath)
+				_, mf, err := mod.Get(mod.WithModDir(modDir))
+				if err != nil {
+					return err
+				}
+				info.modfiles[modPath] = mf
+			}
+		} else {
+			_, mf, err := mod.Get(mod.WithModDir(r.Path))
+			if err != nil {
+				return err
+			}
+			info.modfiles["."] = mf
 		}
 
 		// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
@@ -206,6 +228,15 @@ type diffInfo struct {
 	entrypoints []DetectEntrypointRes
 }
 
+func (r *Detector) findModuleForEntrypoint(entrypoint string, modules []string) string {
+	for _, modPath := range modules {
+		if strings.HasPrefix(entrypoint, modPath) {
+			return modPath
+		}
+	}
+	return "."
+}
+
 func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, changes []string) (diffInfo, error) {
 	w, err := walker.New(r.Path, r.Logger.WithGroup("walker:ref"))
 	if err != nil {
@@ -218,19 +249,52 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 		return abs
 	})
 
-	_, refMod, err := mod.Get(mod.WithModDir(r.Path))
-	if err != nil {
-		return diffInfo{}, err
+	// Get ref modfiles
+	refModfiles := map[string]*modfile.File{}
+	if mainInfo.isWorkspace {
+		modules, err := mod.GetWorkspaceModules(mod.WithWorkDir(r.Path))
+		if err != nil {
+			return diffInfo{}, err
+		}
+		for _, modPath := range modules {
+			modDir := filepath.Join(r.Path, modPath)
+			_, mf, err := mod.Get(mod.WithModDir(modDir))
+			if err != nil {
+				return diffInfo{}, err
+			}
+			refModfiles[modPath] = mf
+		}
+	} else {
+		_, mf, err := mod.Get(mod.WithModDir(r.Path))
+		if err != nil {
+			return diffInfo{}, err
+		}
+		refModfiles["."] = mf
 	}
 
-	// In case Golang got updated, mark all as changed
-	modDiff := mod.Diff(mainInfo.modfile, refMod)
-	if modDiff.Type == mod.ChangeGolang {
-		return diffInfo{
-			entrypoints: lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
-				return DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
-			}),
-		}, nil
+	// Check for global Go version change
+	for modPath, mainMod := range mainInfo.modfiles {
+		refMod := refModfiles[modPath]
+		modDiff := mod.Diff(mainMod, refMod)
+		if modDiff.Type == mod.ChangeGolang {
+			return diffInfo{
+				entrypoints: lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
+					return DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
+				}),
+			}, nil
+		}
+	}
+
+	// Get modules list
+	var modules []string
+	if mainInfo.isWorkspace {
+		var err error
+		modules, err = mod.GetWorkspaceModules(mod.WithWorkDir(r.Path))
+		if err != nil {
+			return diffInfo{}, err
+		}
+	} else {
+		modules = []string{"."}
 	}
 
 	// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
@@ -240,6 +304,12 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 	for _, entry := range r.Entrypoints {
 		entry := entry
 		eg.Go(func() error {
+			// Find module for entrypoint
+			modPath := r.findModuleForEntrypoint(entry, modules)
+			mainMod := mainInfo.modfiles[modPath]
+			refMod := refModfiles[modPath]
+			modDiff := mod.Diff(mainMod, refMod)
+
 			// Walks through all packages for this entry
 			reasons := []ChangeReason{}
 			changesHook := hook.NewChangeDetector(changesByAbsPath)

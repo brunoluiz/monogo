@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/samber/lo"
 	"golang.org/x/mod/modfile"
@@ -31,6 +32,12 @@ func WithModDir(path string) WithOpt {
 	}
 }
 
+func WithWorkDir(path string) WithOpt {
+	return func(c *options) {
+		c.path = filepath.Join(path, "go.work")
+	}
+}
+
 func Get(opts ...WithOpt) (string, *modfile.File, error) {
 	c := options{path: "go.mod"}
 	for _, opt := range opts {
@@ -47,6 +54,37 @@ func Get(opts ...WithOpt) (string, *modfile.File, error) {
 	}
 
 	return modfile.ModulePath(data), m, nil
+}
+
+func GetWorkspaceModules(opts ...WithOpt) ([]string, error) {
+	c := options{path: "go.work"}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	data, err := os.ReadFile(c.path)
+	if err != nil {
+		return nil, fmt.Errorf("error to open go workspace file: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var modules []string
+	inUse := false
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "use (") {
+			inUse = true
+			continue
+		}
+		if inUse {
+			if strings.HasPrefix(line, ")") {
+				break
+			}
+			if strings.HasPrefix(line, "./") || strings.HasPrefix(line, "../") {
+				modules = append(modules, strings.Trim(line, `"`))
+			}
+		}
+	}
+	return modules, nil
 }
 
 type ChangedPackages struct {
