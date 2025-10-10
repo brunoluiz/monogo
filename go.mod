@@ -1,6 +1,6 @@
 module github.com/brunoluiz/monogo
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.25.1
 
@@ -10,7 +10,7 @@ require (
 	github.com/samber/lo v1.51.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.27.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.17.0
 	golang.org/x/tools v0.36.0
 )
 
