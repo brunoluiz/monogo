@@ -7,7 +7,7 @@ toolchain go1.25.1
 require (
 	github.com/alecthomas/kong v1.12.1
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.52.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/mod v0.27.0
 	golang.org/x/sync v0.16.0
