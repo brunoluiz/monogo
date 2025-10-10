@@ -128,20 +128,20 @@ func TestDetector_Run(t *testing.T) {
 			fields: fields{
 				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
 			},
-			            prepare: func(t *testing.T, w *git.Worktree) {
-			                // add new file
-			                targetFile := filepath.Join("pkg", "pkgA", "new.go")
-			                targetWorktreePath := filepath.Join(w.Filesystem.Root(), targetFile)
-			                require.NoError(t, os.WriteFile(targetWorktreePath, []byte("package pkgA\n\nfunc New() string {\n\treturn \"new\"\n}"), 0o600))
-			
-			                var err error
-			                _, err = w.Add(targetFile)
-			                require.NoError(t, err)
-			                _, err = w.Commit("add new file", &git.CommitOptions{
-			                    Author: testAuthor,
-			                })
-			                require.NoError(t, err)
-			            },			assert: func(t *testing.T, res monogo.DetectRes) {
+			prepare: func(t *testing.T, w *git.Worktree) {
+				// add new file
+				targetFile := filepath.Join("pkg", "pkgA", "new.go")
+				targetWorktreePath := filepath.Join(w.Filesystem.Root(), targetFile)
+				require.NoError(t, os.WriteFile(targetWorktreePath, []byte("package pkgA\n\nfunc New() string {\n\treturn \"new\"\n}"), 0o600))
+
+				var err error
+				_, err = w.Add(targetFile)
+				require.NoError(t, err)
+				_, err = w.Commit("add new file", &git.CommitOptions{
+					Author: testAuthor,
+				})
+				require.NoError(t, err)
+			}, assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app1").Reasons, monogo.CreatedDeletedFilesReasons)
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
