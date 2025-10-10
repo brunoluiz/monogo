@@ -1,0 +1,3 @@
+[submodule "go-lab"]
+	path = go-lab
+	url = git@github.com:brunoluiz/go-lab.git
