@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      run: make format staged_files={staged_files}
+pre-push:
+  parallel: true
+  commands:
+    lint:
+      run: make lint
+    test:
+      run: make test

@@ -11,7 +11,7 @@ import (
 
 type DetectCmd struct {
 	Path        string   `help:"Path to detect changes" default:"."`
-	BaseRef     string   `help:"Main git branch" default:"refs/heads/main" help:"Base reference, usually main (e.g., refs/heads/main)"`
+	BaseRef     string   `default:"refs/heads/main" help:"Base reference, usually main (e.g., refs/heads/main)"`
 	CompareRef  string   `required:"" help:"Compare reference, usually your feature branch (e.g., refs/heads/my-branch)"`
 	Entrypoints []string `required:"" help:"Entrypoints to analyze for changes"`
 }
