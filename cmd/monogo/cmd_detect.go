@@ -11,8 +11,9 @@ import (
 
 type DetectCmd struct {
 	Path        string   `help:"Path to detect changes" default:"."`
-	MainBranch  string   `help:"Main git branch" default:"refs/heads/main"`
-	Entrypoints []string `help:"Entrypoints to analyze for changes"`
+	BaseRef     string   `help:"Main git branch" default:"refs/heads/main" help:"Base reference, usually main (e.g., refs/heads/main)"`
+	CompareRef  string   `required:"" help:"Compare reference, usually your feature branch (e.g., refs/heads/my-branch)"`
+	Entrypoints []string `required:"" help:"Entrypoints to analyze for changes"`
 }
 
 func (r *DetectCmd) Run(c *Context) error {
@@ -22,8 +23,9 @@ func (r *DetectCmd) Run(c *Context) error {
 	}
 
 	detector := monogo.NewDetector(r.Entrypoints, c.Logger, g,
-		monogo.WithMainBranch(r.MainBranch),
+		monogo.WithBaseRef(r.BaseRef),
 		monogo.WithPath(r.Path),
+		monogo.WithCompareRef(r.CompareRef),
 	)
 	out, err := detector.Run(c.Context)
 	if err != nil {

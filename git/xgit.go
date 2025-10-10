@@ -51,6 +51,16 @@ func (g *Git) Head() (string, string, error) {
 	return headRef.Hash().String(), string(headRef.Name()), nil
 }
 
+// Ref returns details for a specific ref
+func (g *Git) Ref(ref string) (string, string, error) {
+	refResolved, err := g.repo.ResolveRevision(plumbing.Revision(ref))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve ref: %w", err)
+	}
+
+	return refResolved.String(), ref, nil
+}
+
 func (g *Git) RunOnRef(ref string, cb func() error) error {
 	currentBranch, err := g.repo.Head()
 	if err != nil {
@@ -75,40 +85,40 @@ func (g *Git) RunOnRef(ref string, cb func() error) error {
 	return cb()
 }
 
-// Diff diffs from the current HEAD to the given ref. The output is a list of changes with
+// Diff diffs from the given ref to the compare ref. The output is a list of changes with
 // type of operation and patches applied.
-func (g *Git) Diff(compareRef string) ([]string, error) {
-	headRef, err := g.repo.Head()
+func (g *Git) Diff(fromRef, compareRef string) ([]string, error) {
+	fromRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(fromRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve head ref: %w", err)
+		return nil, fmt.Errorf("failed to resolve from ref: %w", err)
 	}
 
-	sourceRef, err := g.repo.ResolveRevision(plumbing.Revision(compareRef))
+	compareRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(compareRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve source ref: %w", err)
+		return nil, fmt.Errorf("failed to resolve compare ref: %w", err)
 	}
 
-	headCommit, err := g.repo.CommitObject(headRef.Hash())
+	fromCommit, err := g.repo.CommitObject(*fromRefResolved)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get head commit ref: %w", err)
+		return nil, fmt.Errorf("failed to get from commit ref: %w", err)
 	}
 
-	sourceCommit, err := g.repo.CommitObject(*sourceRef)
+	compareCommit, err := g.repo.CommitObject(*compareRefResolved)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get source commit ref: %w", err)
+		return nil, fmt.Errorf("failed to get compare commit ref: %w", err)
 	}
 
-	headTree, err := headCommit.Tree()
+	fromTree, err := fromCommit.Tree()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get head tree: %w", err)
+		return nil, fmt.Errorf("failed to get from tree: %w", err)
 	}
 
-	sourceTree, err := sourceCommit.Tree()
+	compareTree, err := compareCommit.Tree()
 	if err != nil {
-		return nil, fmt.Errorf("falted to get source tree: %w", err)
+		return nil, fmt.Errorf("failed to get compare tree: %w", err)
 	}
 
-	changes, err := object.DiffTree(sourceTree, headTree)
+	changes, err := object.DiffTree(compareTree, fromTree)
 	if err != nil {
 		return nil, fmt.Errorf("failed to diff: %w", err)
 	}

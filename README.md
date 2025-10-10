@@ -21,11 +21,11 @@ These are non-supported features at the moment, but it might change in the futur
 In a mono-repository, you must run the following:
 
 ```sh
-# Normal usage: you must pass the entry points for the binaries to be detected
-monogo detect --entrypoints './cmd/hello,./cmd/foo'
+# Normal usage: you must pass the entry points for the binaries to be detected and the ref branch to compare
+monogo detect --entrypoints './cmd/hello,./cmd/foo' --ref-branch refs/heads/my-branch
 
 # Usage against another repository/folder
-monogo detect --path ./some/folder/repo --entrypoints './cmd/hello,./cmd/foo'
+monogo detect --path ./some/folder/repo --entrypoints './cmd/hello,./cmd/foo' --ref-branch refs/heads/my-branch
 ```
 
 The results will be in JSON format and can be used to trigger jobs to the changed

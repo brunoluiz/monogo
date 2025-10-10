@@ -53,7 +53,8 @@ type DetectEntrypointRes struct {
 
 type Detector struct {
 	Path        string
-	MainBranch  string
+	BaseRef     string
+	CompareRef  string
 	Entrypoints []string
 	Logger      *slog.Logger
 	Git         *git.Git
@@ -63,7 +64,8 @@ type WithDetectOpt func(*detectorConfig)
 
 type detectorConfig struct {
 	path       string
-	mainBranch string
+	baseRef    string
+	compareRef string
 }
 
 func WithPath(path string) func(*detectorConfig) {
@@ -72,9 +74,15 @@ func WithPath(path string) func(*detectorConfig) {
 	}
 }
 
-func WithMainBranch(branch string) func(*detectorConfig) {
+func WithBaseRef(branch string) func(*detectorConfig) {
 	return func(d *detectorConfig) {
-		d.mainBranch = branch
+		d.baseRef = branch
+	}
+}
+
+func WithCompareRef(branch string) func(*detectorConfig) {
+	return func(d *detectorConfig) {
+		d.compareRef = branch
 	}
 }
 
@@ -85,8 +93,8 @@ func NewDetector(
 	opts ...WithDetectOpt,
 ) *Detector {
 	cfg := detectorConfig{
-		mainBranch: "main",
-		path:       ".",
+		baseRef: "refs/heads/main",
+		path:    ".",
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -94,7 +102,8 @@ func NewDetector(
 
 	return &Detector{
 		Path:        cfg.path,
-		MainBranch:  cfg.mainBranch,
+		BaseRef:     cfg.baseRef,
+		CompareRef:  cfg.compareRef,
 		Entrypoints: entrypoints,
 		Logger:      logger,
 		Git:         g,
@@ -102,18 +111,18 @@ func NewDetector(
 }
 
 func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
-	headHash, headRef, err := r.Git.Head()
+	refHash, refName, err := r.Git.Ref(r.CompareRef)
 	if err != nil {
-		return DetectRes{}, fmt.Errorf("failed to get head ref: %w", err)
+		return DetectRes{}, fmt.Errorf("failed to get ref: %w", err)
 	}
 
 	res := DetectRes{
-		Git:         DetectGitRes{Hash: headHash, Ref: headRef},
+		Git:         DetectGitRes{Hash: refHash, Ref: refName},
 		Stats:       DetectStatsRes{StartedAt: time.Now(), EndedAt: time.Now()},
 		Entrypoints: []DetectEntrypointRes{},
 	}
 
-	changes, err := r.Git.Diff(r.MainBranch)
+	changes, err := r.Git.Diff(r.CompareRef, r.BaseRef)
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failed to load diff: %w", err)
 	}
@@ -151,7 +160,7 @@ type mainBranchInfo struct {
 
 func (r *Detector) getMainBranchInfo(ctx context.Context) (mainBranchInfo, error) {
 	info := mainBranchInfo{filesByEntrypoint: map[string][]string{}}
-	err := r.Git.RunOnRef(r.MainBranch, func() error {
+	err := r.Git.RunOnRef(r.BaseRef, func() error {
 		w, err := walker.New(r.Path, r.Logger.WithGroup("walker:main"))
 		if err != nil {
 			return err

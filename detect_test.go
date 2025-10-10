@@ -320,9 +320,10 @@ func main() {
 			// checkout to a new branch based on main
 			ref, err := repo.Head()
 			require.NoError(t, err)
+			b := plumbing.NewBranchReferenceName("test-branch")
 			require.NoError(t, w.Checkout(&git.CheckoutOptions{
 				Create: true,
-				Branch: plumbing.NewBranchReferenceName("test-branch"),
+				Branch: b,
 				Hash:   ref.Hash(),
 			}))
 
@@ -331,7 +332,8 @@ func main() {
 			require.NoError(t, err)
 			d := monogo.NewDetector(tt.fields.entrypoints, slog.Default(), g,
 				monogo.WithPath(tmpDir),
-				monogo.WithMainBranch(string(plumbing.NewBranchReferenceName("main"))),
+				monogo.WithBaseRef(string(plumbing.NewBranchReferenceName("main"))),
+				monogo.WithCompareRef(string(b)),
 			)
 
 			tt.prepare(t, w)
