@@ -111,7 +111,6 @@ func (w *Walker) handlePackage(
 func getModuleName(filePath string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(filePath, "go.mod"))
 	if err != nil {
-		fmt.Printf("Failed to read file: %v\n", err)
 		return "", nil
 	}
 
