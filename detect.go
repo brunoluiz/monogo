@@ -207,70 +207,75 @@ type diffInfo struct {
 }
 
 func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, changes []string) (diffInfo, error) {
-	w, err := walker.New(r.Path, r.Logger.WithGroup("walker:ref"))
-	if err != nil {
-		return diffInfo{}, err
-	}
+	info := diffInfo{entrypoints: []DetectEntrypointRes{}}
+	err := r.Git.RunOnRef(r.CompareRef, func() error {
+		w, err := walker.New(r.Path, r.Logger.WithGroup("walker:ref"))
+		if err != nil {
+			return err
+		}
 
-	changesByAbsPath := lo.Map(changes, func(change string, _ int) string {
-		// nolint
-		abs, _ := filepath.Abs(filepath.Join(r.Path, change))
-		return abs
+		changesByAbsPath := lo.Map(changes, func(change string, _ int) string {
+			// nolint
+			abs, _ := filepath.Abs(filepath.Join(r.Path, change))
+			return abs
+		})
+
+		_, refMod, err := mod.Get(mod.WithModDir(r.Path))
+		if err != nil {
+			return err
+		}
+
+		// In case Golang got updated, mark all as changed
+		modDiff := mod.Diff(mainInfo.modfile, refMod)
+		if modDiff.Type == mod.ChangeGolang {
+			info = diffInfo{
+				entrypoints: lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
+					return DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
+				}),
+			}
+			return nil
+		}
+
+		// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
+		eg, ctx := errgroup.WithContext(ctx)
+		rw := sync.RWMutex{}
+		for _, entry := range r.Entrypoints {
+			entry := entry
+			eg.Go(func() error {
+				// Walks through all packages for this entry
+				reasons := []ChangeReason{}
+				changesHook := hook.NewChangeDetector(changesByAbsPath)
+				listerHook := hook.NewLister()
+				modHook := hook.NewModDetector(modDiff.Packages.All())
+				if err := w.Walk(ctx, entry, changesHook, listerHook, modHook); err != nil {
+					return err
+				}
+
+				// Assertions and reason mapping
+				if changesHook.Found() {
+					reasons = append(reasons, ChangedFilesReason)
+				}
+				if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
+					reasons = append(reasons, CreatedDeletedFilesReasons)
+				}
+				if modHook.Found() {
+					reasons = append(reasons, DependenciesChangedReason)
+				}
+
+				// Write operations to shared memory below
+				rw.Lock()
+				defer rw.Unlock()
+				info.entrypoints = append(info.entrypoints, DetectEntrypointRes{
+					Path:    entry,
+					Changed: len(reasons) > 0,
+					Reasons: reasons,
+				})
+				return nil
+			})
+		}
+
+		return eg.Wait()
 	})
 
-	_, refMod, err := mod.Get(mod.WithModDir(r.Path))
-	if err != nil {
-		return diffInfo{}, err
-	}
-
-	// In case Golang got updated, mark all as changed
-	modDiff := mod.Diff(mainInfo.modfile, refMod)
-	if modDiff.Type == mod.ChangeGolang {
-		return diffInfo{
-			entrypoints: lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
-				return DetectEntrypointRes{Path: item, Changed: true, Reasons: []ChangeReason{GoVersionChangedReason}}
-			}),
-		}, nil
-	}
-
-	// Runs each entrypoint walker with go routines: you must test it with `-race` enabled
-	eg, ctx := errgroup.WithContext(ctx)
-	rw := sync.RWMutex{}
-	info := diffInfo{entrypoints: []DetectEntrypointRes{}}
-	for _, entry := range r.Entrypoints {
-		entry := entry
-		eg.Go(func() error {
-			// Walks through all packages for this entry
-			reasons := []ChangeReason{}
-			changesHook := hook.NewChangeDetector(changesByAbsPath)
-			listerHook := hook.NewLister()
-			modHook := hook.NewModDetector(modDiff.Packages.All())
-			if err := w.Walk(ctx, entry, changesHook, listerHook, modHook); err != nil {
-				return err
-			}
-
-			// Assertions and reason mapping
-			if changesHook.Found() {
-				reasons = append(reasons, ChangedFilesReason)
-			}
-			if !lo.ElementsMatch(mainInfo.filesByEntrypoint[entry], listerHook.Files()) {
-				reasons = append(reasons, CreatedDeletedFilesReasons)
-			}
-			if modHook.Found() {
-				reasons = append(reasons, DependenciesChangedReason)
-			}
-
-			// Write operations to shared memory below
-			rw.Lock()
-			defer rw.Unlock()
-			info.entrypoints = append(info.entrypoints, DetectEntrypointRes{
-				Path:    entry,
-				Changed: len(reasons) > 0,
-				Reasons: reasons,
-			})
-			return nil
-		})
-	}
-
-	return info, eg.Wait()
+	return info, err
 }
