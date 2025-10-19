@@ -55,7 +55,7 @@ func (g *Git) Head() (string, string, error) {
 func (g *Git) Ref(ref string) (string, string, error) {
 	refResolved, err := g.repo.ResolveRevision(plumbing.Revision(ref))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to resolve ref: %w", err)
+		return "", "", fmt.Errorf("failed to resolve ref %s: %w", ref, err)
 	}
 
 	return refResolved.String(), ref, nil
@@ -79,12 +79,12 @@ func (g *Git) RunOnRef(ref string, cb func() error) error {
 func (g *Git) Diff(fromRef, compareRef string) ([]string, error) {
 	fromRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(fromRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve from ref: %w", err)
+		return nil, fmt.Errorf("failed to resolve from ref %s: %w", fromRef, err)
 	}
 
 	compareRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(compareRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve compare ref: %w", err)
+		return nil, fmt.Errorf("failed to resolve compare ref %s: %w", compareRef, err)
 	}
 
 	fromCommit, err := g.repo.CommitObject(*fromRefResolved)
