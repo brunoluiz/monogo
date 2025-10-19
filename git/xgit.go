@@ -67,6 +67,14 @@ func (g *Git) RunOnRef(ref string, cb func() error) error {
 		return fmt.Errorf("failed to resolve worktree: %w", err)
 	}
 
+	currentRef, err := g.repo.Head()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		wt.Checkout(&git.CheckoutOptions{Hash: currentRef.Hash()})
+	}()
+
 	rev, err := g.repo.ResolveRevision(plumbing.Revision(ref))
 	if err != nil {
 		return fmt.Errorf("failed to resolve revision %s: %w", ref, err)
