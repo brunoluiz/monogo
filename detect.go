@@ -52,20 +52,22 @@ type DetectEntrypointRes struct {
 }
 
 type Detector struct {
-	Path        string
-	BaseRef     string
-	CompareRef  string
-	Entrypoints []string
-	Logger      *slog.Logger
-	Git         *git.Git
+	Path          string
+	BaseRef       string
+	CompareRef    string
+	Entrypoints   []string
+	Logger        *slog.Logger
+	Git           *git.Git
+	ShowUnchanged bool
 }
 
 type WithDetectOpt func(*detectorConfig)
 
 type detectorConfig struct {
-	path       string
-	baseRef    string
-	compareRef string
+	path          string
+	baseRef       string
+	compareRef    string
+	showUnchanged bool
 }
 
 func WithPath(path string) func(*detectorConfig) {
@@ -86,6 +88,12 @@ func WithCompareRef(branch string) func(*detectorConfig) {
 	}
 }
 
+func WithShowUnchanged(show bool) func(*detectorConfig) {
+	return func(d *detectorConfig) {
+		d.showUnchanged = show
+	}
+}
+
 func NewDetector(
 	entrypoints []string,
 	logger *slog.Logger,
@@ -101,12 +109,13 @@ func NewDetector(
 	}
 
 	return &Detector{
-		Path:        cfg.path,
-		BaseRef:     cfg.baseRef,
-		CompareRef:  cfg.compareRef,
-		Entrypoints: entrypoints,
-		Logger:      logger,
-		Git:         g,
+		Path:          cfg.path,
+		BaseRef:       cfg.baseRef,
+		CompareRef:    cfg.compareRef,
+		Entrypoints:   entrypoints,
+		Logger:        logger,
+		Git:           g,
+		ShowUnchanged: cfg.showUnchanged,
 	}
 }
 
@@ -265,11 +274,14 @@ func (r *Detector) getDiffInfo(ctx context.Context, mainInfo mainBranchInfo, cha
 				// Write operations to shared memory below
 				rw.Lock()
 				defer rw.Unlock()
-				info.entrypoints = append(info.entrypoints, DetectEntrypointRes{
-					Path:    entry,
-					Changed: len(reasons) > 0,
-					Reasons: reasons,
-				})
+				changed := len(reasons) > 0
+				if changed || r.ShowUnchanged {
+					info.entrypoints = append(info.entrypoints, DetectEntrypointRes{
+						Path:    entry,
+						Changed: changed,
+						Reasons: reasons,
+					})
+				}
 				return nil
 			})
 		}

@@ -38,7 +38,8 @@ func TestDetector_Run(t *testing.T) {
 	}
 
 	type fields struct {
-		entrypoints []string
+		entrypoints   []string
+		showUnchanged bool
 	}
 
 	tests := []struct {
@@ -50,7 +51,8 @@ func TestDetector_Run(t *testing.T) {
 		{
 			name: "should not detect any changes",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
@@ -62,7 +64,8 @@ func TestDetector_Run(t *testing.T) {
 		{
 			name: "should detect go version upgrade",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// change go version
@@ -93,7 +96,8 @@ func TestDetector_Run(t *testing.T) {
 		{
 			name: "should detect external dependency version bump",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				t.Skip()
@@ -126,7 +130,8 @@ func TestDetector_Run(t *testing.T) {
 		{
 			name: "should detect new file in internal package",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// add new file
@@ -144,7 +149,7 @@ func TestDetector_Run(t *testing.T) {
 			}, assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app1").Reasons, monogo.CreatedDeletedFilesReasons)
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app2"))
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.CreatedDeletedFilesReasons)
 			},
@@ -152,7 +157,8 @@ func TestDetector_Run(t *testing.T) {
 		{
 			name: "should detect file change in shared package",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// change shared package file
@@ -189,7 +195,8 @@ func Log(msg string) {
 		{
 			name: "should detect file change in pkgB",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// change pkgB file
@@ -211,7 +218,7 @@ func B() string {
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app1"))
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons, monogo.ChangedFilesReason)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
@@ -221,7 +228,8 @@ func B() string {
 		{
 			name: "should detect file deletion in internal package",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// delete file
@@ -239,7 +247,7 @@ func B() string {
 			assert: func(t *testing.T, res monogo.DetectRes) {
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app1").Reasons, monogo.CreatedDeletedFilesReasons)
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app2"))
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.CreatedDeletedFilesReasons)
 			},
@@ -247,7 +255,8 @@ func B() string {
 		{
 			name: "should detect new cmd that does not exist in main branch",
 			fields: fields{
-				entrypoints: []string{"cmd/app1", "cmd/app2", "cmd/app3", "cmd/app4"},
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3", "cmd/app4"},
+				showUnchanged: false,
 			},
 			prepare: func(t *testing.T, w *git.Worktree) {
 				// create new cmd directory and main.go that doesn't exist in main branch
@@ -279,13 +288,44 @@ func main() {
 				require.NoError(t, err)
 			},
 			assert: func(t *testing.T, res monogo.DetectRes) {
-				// existing apps should not be affected
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
-				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
+				// existing apps should not be included since unchanged
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app1"))
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app2"))
+				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app3"))
 				// new app should be detected as changed (since it doesn't exist in main)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app4").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app4").Reasons, monogo.CreatedDeletedFilesReasons)
+			},
+		},
+		{
+			name: "should show unchanged entrypoints when showUnchanged is true",
+			fields: fields{
+				entrypoints:   []string{"cmd/app1", "cmd/app2", "cmd/app3"},
+				showUnchanged: true,
+			},
+			prepare: func(t *testing.T, w *git.Worktree) {
+				// add new file that affects app1 and app3 but not app2
+				targetFile := filepath.Join("pkg", "pkgA", "new.go")
+				targetWorktreePath := filepath.Join(w.Filesystem.Root(), targetFile)
+				require.NoError(t, os.WriteFile(targetWorktreePath, []byte("package pkgA\n\nfunc New() string {\n\treturn \"new\"\n}"), 0o600))
+
+				var err error
+				_, err = w.Add(targetFile)
+				require.NoError(t, err)
+				_, err = w.Commit("add new file", &git.CommitOptions{
+					Author: testAuthor,
+				})
+				require.NoError(t, err)
+			},
+			assert: func(t *testing.T, res monogo.DetectRes) {
+				// app1 and app3 should be changed
+				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
+				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app1").Reasons, monogo.CreatedDeletedFilesReasons)
+				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
+				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.CreatedDeletedFilesReasons)
+				// app2 should be unchanged but included
+				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
+				require.Empty(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons)
 			},
 		},
 	}
@@ -334,6 +374,7 @@ func main() {
 				monogo.WithPath(tmpDir),
 				monogo.WithBaseRef(string(plumbing.NewBranchReferenceName("main"))),
 				monogo.WithCompareRef(string(b)),
+				monogo.WithShowUnchanged(tt.fields.showUnchanged),
 			)
 
 			tt.prepare(t, w)
