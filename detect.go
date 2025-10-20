@@ -42,9 +42,10 @@ type DetectGitRes struct {
 }
 
 type DetectGitChangesRes struct {
-	Created DetectFileTypeRes `json:"created"`
-	Updated DetectFileTypeRes `json:"updated"`
-	Deleted DetectFileTypeRes `json:"deleted"`
+	Created  DetectFileTypeRes `json:"created"`
+	Updated  DetectFileTypeRes `json:"updated"`
+	Deleted  DetectFileTypeRes `json:"deleted"`
+	Impacted DetectFileTypeRes `json:"impacted"`
 }
 
 type DetectFileTypeRes struct {
@@ -143,9 +144,10 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 			Hash: refHash,
 			Ref:  refName,
 			Files: DetectGitChangesRes{
-				Created: DetectFileTypeRes{Go: []string{}, All: []string{}},
-				Deleted: DetectFileTypeRes{Go: []string{}, All: []string{}},
-				Updated: DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Created:  DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Deleted:  DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Updated:  DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Impacted: DetectFileTypeRes{Go: []string{}, All: []string{}},
 			},
 		},
 		Stats:       DetectStatsRes{StartedAt: time.Now(), EndedAt: time.Now()},
@@ -194,6 +196,10 @@ func (r *Detector) populateFilesFromChanges(files *DetectGitChangesRes, changes 
 	files.Created.Go = lo.Filter(changes.Created, isGolangFile)
 	files.Updated.Go = lo.Filter(changes.Updated, isGolangFile)
 	files.Deleted.Go = lo.Filter(changes.Deleted, isGolangFile)
+	files.Impacted.Go = append(files.Impacted.Go, files.Created.Go...)
+	files.Impacted.Go = append(files.Impacted.Go, files.Updated.Go...)
+	files.Impacted.All = append(files.Impacted.All, files.Created.All...)
+	files.Impacted.All = append(files.Impacted.All, files.Updated.All...)
 }
 
 type mainBranchInfo struct {
