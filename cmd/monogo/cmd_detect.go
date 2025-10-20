@@ -40,7 +40,7 @@ func (r *DetectCmd) Run(c *Context) error {
 		if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
 			return fmt.Errorf("failed to encode output: %w", err)
 		}
-	case "github-output":
+	case "github":
 		if err := outputGitHub(out); err != nil {
 			return fmt.Errorf("failed to output github format: %w", err)
 		}
