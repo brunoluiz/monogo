@@ -15,7 +15,7 @@ type DetectCmd struct {
 	CompareRef    string   `required:"" help:"Compare reference, usually your feature branch (e.g., refs/heads/my-branch)"`
 	Entrypoints   []string `required:"" help:"Entrypoints to analyze for changes"`
 	ShowUnchanged bool     `help:"Show unchanged entrypoints in the output" default:"false"`
-	Output        string   `help:"Output format: json or github-output" default:"json" enum:"json,github-output"`
+	Output        string   `help:"Output format: json or github-output" default:"json" enum:"json,github"`
 }
 
 func (r *DetectCmd) Run(c *Context) error {
