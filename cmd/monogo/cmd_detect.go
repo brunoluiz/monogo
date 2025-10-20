@@ -15,6 +15,7 @@ type DetectCmd struct {
 	CompareRef    string   `required:"" help:"Compare reference, usually your feature branch (e.g., refs/heads/my-branch)"`
 	Entrypoints   []string `required:"" help:"Entrypoints to analyze for changes"`
 	ShowUnchanged bool     `help:"Show unchanged entrypoints in the output" default:"false"`
+	Output        string   `help:"Output format: json or github-output" default:"json" enum:"json,github-output"`
 }
 
 func (r *DetectCmd) Run(c *Context) error {
@@ -34,9 +35,41 @@ func (r *DetectCmd) Run(c *Context) error {
 		return fmt.Errorf("failed to run detect command: %w", err)
 	}
 
-	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
-		return fmt.Errorf("failed to encode output: %w", err)
+	switch r.Output {
+	case "json":
+		if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
+			return fmt.Errorf("failed to encode output: %w", err)
+		}
+	case "github-output":
+		if err := outputGitHub(out); err != nil {
+			return fmt.Errorf("failed to output github format: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown output format: %s", r.Output)
 	}
+
+	return nil
+}
+
+func outputGitHub(out monogo.DetectRes) error {
+	jsonBytes, err := json.Marshal(out)
+	if err != nil {
+		return fmt.Errorf("failed to marshal json: %w", err)
+	}
+
+	entrypointsBytes, err := json.Marshal(out.Entrypoints)
+	if err != nil {
+		return fmt.Errorf("failed to marshal entrypoints: %w", err)
+	}
+
+	impactedGoBytes, err := json.Marshal(out.Git.Files.Impacted.Go)
+	if err != nil {
+		return fmt.Errorf("failed to marshal impacted go files: %w", err)
+	}
+	fmt.Printf("json=%s\n", string(jsonBytes))
+	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
+	fmt.Printf("impacted_go_files=%s\n", string(impactedGoBytes))
+	fmt.Printf("changed=%t\n", out.Changed)
 
 	return nil
 }
