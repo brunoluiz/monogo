@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/brunoluiz/monogo"
 	"github.com/brunoluiz/monogo/git"
@@ -62,13 +63,9 @@ func outputGitHub(out monogo.DetectRes) error {
 		return fmt.Errorf("failed to marshal entrypoints: %w", err)
 	}
 
-	impactedGoBytes, err := json.Marshal(out.Git.Files.Impacted.Go)
-	if err != nil {
-		return fmt.Errorf("failed to marshal impacted go files: %w", err)
-	}
 	fmt.Printf("json=%s\n", string(jsonBytes))
 	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
-	fmt.Printf("impacted_go_files=%s\n", string(impactedGoBytes))
+	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, ","))
 	fmt.Printf("changed=%t\n", out.Changed)
 
 	return nil
