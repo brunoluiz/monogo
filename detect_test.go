@@ -58,6 +58,9 @@ func TestDetector_Run(t *testing.T) {
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app1").Changed)
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
+				require.Empty(t, res.Git.Files.Created.All)
+				require.Empty(t, res.Git.Files.Updated.All)
+				require.Empty(t, res.Git.Files.Deleted.All)
 			},
 			prepare: func(_ *testing.T, _ *git.Worktree) {},
 		},
@@ -91,6 +94,8 @@ func TestDetector_Run(t *testing.T) {
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons, monogo.GoVersionChangedReason)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.GoVersionChangedReason)
+				require.Contains(t, res.Git.Files.Updated.All, "go.mod")
+				require.NotContains(t, res.Git.Files.Updated.Go, "go.mod")
 			},
 		},
 		{
@@ -190,6 +195,8 @@ func Log(msg string) {
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons, monogo.ChangedFilesReason)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.ChangedFilesReason)
+				require.Contains(t, res.Git.Files.Updated.All, "pkg/shared/shared.go")
+				require.Contains(t, res.Git.Files.Updated.Go, "pkg/shared/shared.go")
 			},
 		},
 		{
@@ -223,6 +230,8 @@ func B() string {
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons, monogo.ChangedFilesReason)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.ChangedFilesReason)
+				require.Contains(t, res.Git.Files.Updated.All, "pkg/pkgB/b.go")
+				require.Contains(t, res.Git.Files.Updated.Go, "pkg/pkgB/b.go")
 			},
 		},
 		{
@@ -250,6 +259,8 @@ func B() string {
 				require.Nil(t, findEntrypoint(res.Entrypoints, "cmd/app2"))
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app3").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app3").Reasons, monogo.CreatedDeletedFilesReasons)
+				require.Contains(t, res.Git.Files.Deleted.All, "pkg/pkgA/deleteme.go")
+				require.Contains(t, res.Git.Files.Deleted.Go, "pkg/pkgA/deleteme.go")
 			},
 		},
 		{
@@ -295,6 +306,8 @@ func main() {
 				// new app should be detected as changed (since it doesn't exist in main)
 				require.True(t, findEntrypoint(res.Entrypoints, "cmd/app4").Changed)
 				require.Contains(t, findEntrypoint(res.Entrypoints, "cmd/app4").Reasons, monogo.CreatedDeletedFilesReasons)
+				require.Contains(t, res.Git.Files.Created.All, "cmd/app4/main.go")
+				require.Contains(t, res.Git.Files.Created.Go, "cmd/app4/main.go")
 			},
 		},
 		{
@@ -326,6 +339,8 @@ func main() {
 				// app2 should be unchanged but included
 				require.False(t, findEntrypoint(res.Entrypoints, "cmd/app2").Changed)
 				require.Empty(t, findEntrypoint(res.Entrypoints, "cmd/app2").Reasons)
+				require.Contains(t, res.Git.Files.Created.All, "pkg/pkgA/new.go")
+				require.Contains(t, res.Git.Files.Created.Go, "pkg/pkgA/new.go")
 			},
 		},
 	}

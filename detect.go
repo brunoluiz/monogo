@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,8 +36,20 @@ type DetectRes struct {
 }
 
 type DetectGitRes struct {
-	Hash string `json:"hash"`
-	Ref  string `json:"ref"`
+	Hash  string              `json:"hash"`
+	Ref   string              `json:"ref"`
+	Files DetectGitChangesRes `json:"files"`
+}
+
+type DetectGitChangesRes struct {
+	Created DetectFileTypeRes `json:"created"`
+	Updated DetectFileTypeRes `json:"updated"`
+	Deleted DetectFileTypeRes `json:"deleted"`
+}
+
+type DetectFileTypeRes struct {
+	All []string `json:"all"`
+	Go  []string `json:"go"`
 }
 
 type DetectStatsRes struct {
@@ -126,17 +139,27 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 	}
 
 	res := DetectRes{
-		Git:         DetectGitRes{Hash: refHash, Ref: refName},
+		Git: DetectGitRes{
+			Hash: refHash,
+			Ref:  refName,
+			Files: DetectGitChangesRes{
+				Created: DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Deleted: DetectFileTypeRes{Go: []string{}, All: []string{}},
+				Updated: DetectFileTypeRes{Go: []string{}, All: []string{}},
+			},
+		},
 		Stats:       DetectStatsRes{StartedAt: time.Now(), EndedAt: time.Now()},
 		Entrypoints: []DetectEntrypointRes{},
 	}
 
-	changes, err := r.Git.Diff(r.CompareRef, r.BaseRef)
+	diffResult, err := r.Git.Diff(r.CompareRef, r.BaseRef)
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failed to load diff: %w", err)
 	}
 
-	if len(changes) == 0 {
+	r.populateFilesFromChanges(&res.Git.Files, diffResult)
+
+	if len(diffResult.All()) == 0 {
 		res.Entrypoints = lo.Map(r.Entrypoints, func(item string, _ int) DetectEntrypointRes {
 			return DetectEntrypointRes{Path: item, Changed: false, Reasons: []ChangeReason{NoGitChangesReason}}
 		})
@@ -148,7 +171,7 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		return DetectRes{}, fmt.Errorf("failure while getting main tree info: %w", err)
 	}
 
-	diffInfo, err := r.getDiffInfo(ctx, mainInfo, changes)
+	diffInfo, err := r.getDiffInfo(ctx, mainInfo, diffResult.All())
 	if err != nil {
 		return DetectRes{}, fmt.Errorf("failure while getting diff info: %w", err)
 	}
@@ -160,6 +183,17 @@ func (r *Detector) Run(ctx context.Context) (DetectRes, error) {
 		return item.Changed
 	})
 	return res, err
+}
+
+func (r *Detector) populateFilesFromChanges(files *DetectGitChangesRes, changes git.DiffResult) {
+	isGolangFile := func(file string, _ int) bool { return strings.HasSuffix(file, ".go") }
+
+	files.Created.All = changes.Created
+	files.Updated.All = changes.Updated
+	files.Deleted.All = changes.Deleted
+	files.Created.Go = lo.Filter(changes.Created, isGolangFile)
+	files.Updated.Go = lo.Filter(changes.Updated, isGolangFile)
+	files.Deleted.Go = lo.Filter(changes.Deleted, isGolangFile)
 }
 
 type mainBranchInfo struct {

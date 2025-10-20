@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"sort"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -11,6 +12,21 @@ import (
 
 type Git struct {
 	repo *git.Repository
+}
+
+type DiffResult struct {
+	Created []string
+	Updated []string
+	Deleted []string
+}
+
+func (d DiffResult) All() []string {
+	all := make([]string, 0, len(d.Created)+len(d.Updated)+len(d.Deleted))
+	all = append(all, d.Created...)
+	all = append(all, d.Updated...)
+	all = append(all, d.Deleted...)
+	sort.Strings(all)
+	return all
 }
 
 type gitConfig struct {
@@ -87,63 +103,65 @@ func (g *Git) RunOnRef(ref string, cb func() error) error {
 	return cb()
 }
 
-// Diff diffs from the given ref to the compare ref. The output is a list of changes with
-// type of operation and patches applied.
-func (g *Git) Diff(fromRef, compareRef string) ([]string, error) {
+// Diff diffs from the given ref to the compare ref. The output is a DiffResult with
+// Created, Updated, and Deleted files.
+func (g *Git) Diff(fromRef, compareRef string) (DiffResult, error) {
 	fromRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(fromRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve from ref %s: %w", fromRef, err)
+		return DiffResult{}, fmt.Errorf("failed to resolve from ref %s: %w", fromRef, err)
 	}
 
 	compareRefResolved, err := g.repo.ResolveRevision(plumbing.Revision(compareRef))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve compare ref %s: %w", compareRef, err)
+		return DiffResult{}, fmt.Errorf("failed to resolve compare ref %s: %w", compareRef, err)
 	}
 
 	fromCommit, err := g.repo.CommitObject(*fromRefResolved)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get from commit ref: %w", err)
+		return DiffResult{}, fmt.Errorf("failed to get from commit ref: %w", err)
 	}
 
 	compareCommit, err := g.repo.CommitObject(*compareRefResolved)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get compare commit ref: %w", err)
+		return DiffResult{}, fmt.Errorf("failed to get compare commit ref: %w", err)
 	}
 
 	fromTree, err := fromCommit.Tree()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get from tree: %w", err)
+		return DiffResult{}, fmt.Errorf("failed to get from tree: %w", err)
 	}
 
 	compareTree, err := compareCommit.Tree()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get compare tree: %w", err)
+		return DiffResult{}, fmt.Errorf("failed to get compare tree: %w", err)
 	}
 
 	changes, err := object.DiffTree(compareTree, fromTree)
 	if err != nil {
-		return nil, fmt.Errorf("failed to diff: %w", err)
+		return DiffResult{}, fmt.Errorf("failed to diff: %w", err)
 	}
 
-	var files []string // nolint: prealloc
+	result := DiffResult{Created: []string{}, Updated: []string{}, Deleted: []string{}}
 	for _, change := range changes {
-		// Ignore deleted files
 		action, err := change.Action()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get diff action: %w", err)
-		}
-
-		if action == merkletrie.Delete {
-			files = append(files, change.From.Name)
-			continue
+			return DiffResult{}, fmt.Errorf("failed to get diff action: %w", err)
 		}
 
 		name := change.To.Name
 		if change.From.Name != "" {
 			name = change.From.Name
 		}
-		files = append(files, name)
+
+		switch action {
+		case merkletrie.Insert:
+			result.Created = append(result.Created, name)
+		case merkletrie.Delete:
+			result.Deleted = append(result.Deleted, change.From.Name)
+		case merkletrie.Modify:
+			result.Updated = append(result.Updated, name)
+		}
 	}
 
-	return files, nil
+	return result, nil
 }
