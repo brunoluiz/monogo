@@ -88,7 +88,7 @@ func (g *Git) RunOnRef(ref string, cb func() error) error {
 		return err
 	}
 	defer func() {
-		wt.Checkout(&git.CheckoutOptions{Hash: currentRef.Hash()})
+		_ = wt.Checkout(&git.CheckoutOptions{Hash: currentRef.Hash()}) // nolint:errcheck
 	}()
 
 	rev, err := g.repo.ResolveRevision(plumbing.Revision(ref))
