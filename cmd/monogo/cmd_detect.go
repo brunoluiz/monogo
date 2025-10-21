@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/brunoluiz/monogo"
 	"github.com/brunoluiz/monogo/git"
+	"github.com/samber/lo"
 )
 
 type DetectCmd struct {
@@ -66,6 +68,16 @@ func outputGitHub(out monogo.DetectRes) error {
 	fmt.Printf("json=%s\n", string(jsonBytes))
 	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
 	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, ","))
+	fmt.Printf("impacted_go_packages=%s\n", lo.Reduce(out.Git.Files.Impacted.Go,
+		func(folders []string, file string, index int) []string {
+			folder := filepath.Dir(file)
+			if _, ok := lo.Find(folders, func(existingFolder string) bool {
+				return existingFolder == folder
+			}); ok {
+				return folders
+			}
+			return append(folders, folder)
+		}, []string{}))
 	fmt.Printf("changed=%t\n", out.Changed)
 
 	return nil
