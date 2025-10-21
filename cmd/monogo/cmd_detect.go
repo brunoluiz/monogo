@@ -65,10 +65,7 @@ func outputGitHub(out monogo.DetectRes) error {
 		return fmt.Errorf("failed to marshal entrypoints: %w", err)
 	}
 
-	fmt.Printf("json=%s\n", string(jsonBytes))
-	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
-	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, ","))
-	fmt.Printf("impacted_go_folders=%s\n", lo.Reduce(out.Git.Files.Impacted.Go,
+	impactedFolders := lo.Reduce(out.Git.Files.Impacted.Go,
 		func(folders []string, file string, index int) []string {
 			folder := filepath.Dir(file)
 			if _, ok := lo.Find(folders, func(existingFolder string) bool {
@@ -77,7 +74,12 @@ func outputGitHub(out monogo.DetectRes) error {
 				return folders
 			}
 			return append(folders, folder)
-		}, []string{}))
+		}, []string{})
+
+	fmt.Printf("json=%s\n", string(jsonBytes))
+	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
+	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, ","))
+	fmt.Printf("impacted_go_folders=%s\n", strings.Join(impactedFolders, ","))
 	fmt.Printf("changed=%t\n", out.Changed)
 
 	return nil
