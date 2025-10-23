@@ -78,8 +78,8 @@ func outputGitHub(out monogo.DetectRes) error {
 
 	fmt.Printf("json=%s\n", string(jsonBytes))
 	fmt.Printf("entrypoints=%s\n", string(entrypointsBytes))
-	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, ","))
-	fmt.Printf("impacted_go_folders=%s\n", strings.Join(impactedFolders, ","))
+	fmt.Printf("impacted_go_files=%s\n", strings.Join(out.Git.Files.Impacted.Go, " "))
+	fmt.Printf("impacted_go_folders=%s\n", strings.Join(impactedFolders, " "))
 	fmt.Printf("changed=%t\n", out.Changed)
 
 	return nil
